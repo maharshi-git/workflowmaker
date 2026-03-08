@@ -99,6 +99,17 @@
                     }
                 }
             ]
+        },
+        {
+            "agentName": "testagent",
+            "agentDefinition": "test agent",
+            "tools": [
+                {
+                    "toolName": "testtool",
+                    "toolDefinition": "",
+                    "formToBeSent": {}
+                }
+            ]
         }
     ]
 }

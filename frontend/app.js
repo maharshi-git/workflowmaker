@@ -14,7 +14,20 @@ const state = {
     apiCalls: [],
 };
 
-// ── Init ───────────────────────────────────────────────────
+// Theme integration logic
+function applyTheme(isLight) {
+    if (isLight) {
+        document.documentElement.setAttribute('data-theme', 'light');
+    } else {
+        document.documentElement.removeAttribute('data-theme');
+    }
+}
+
+function toggleNativeTheme() {
+    const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+    applyTheme(!isLight);
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
     try {
         state.agents = await fetch('/api/agents').then(r => r.json());
@@ -29,6 +42,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Metadata file upload handler
     document.getElementById('meta-file-input').addEventListener('change', handleMetaFileUpload);
     document.getElementById('meta-entity-select').addEventListener('change', onMetaEntitySelected);
+
+    // 1. Listen for cross-window messages (from UI5 shell)
+    window.addEventListener('message', e => {
+        if (e.data && e.data.action === 'setTheme') {
+            applyTheme(e.data.theme === 'light');
+        }
+    });
+
+    // 2. Fallback to native OS preference if UI5 doesn't send anything
+    const darkModePrefs = window.matchMedia('(prefers-color-scheme: dark)');
+    applyTheme(!darkModePrefs.matches);
+    darkModePrefs.addEventListener('change', e => applyTheme(!e.matches));
 });
 
 // ═══════════════════════════════════════════════════════════
@@ -226,6 +251,21 @@ function deleteTool(agentIdx, toolIdx) {
 // ═══════════════════════════════════════════════════════════
 //  View 3 — Tool Detail
 // ═══════════════════════════════════════════════════════════
+
+function publishToUI5() {
+    if (state.currentAgent === null || state.currentTool === null) return;
+    const tool = state.agents[state.currentAgent].tools[state.currentTool];
+    const preview = document.getElementById('fn-code-preview');
+    const queryCode = preview ? preview.value : '';
+
+    window.parent.postMessage({
+        action: 'toolUpdated',
+        sampleForm: state.sampleFormDef || [],
+        formToBeSent: tool.formToBeSent || {},
+        queryCode: queryCode
+    }, '*');
+}
+
 function showToolDetail(agentIdx, toolIdx) {
     state.currentAgent = agentIdx;
     state.currentTool = toolIdx;
@@ -246,15 +286,12 @@ function showToolDetail(agentIdx, toolIdx) {
     document.getElementById('det-tool-name').onchange = function () { tool.toolName = this.value; };
     document.getElementById('det-tool-def').onchange = function () { tool.toolDefinition = this.value; };
     document.getElementById('form-json-editor').onchange = function () {
-        try { tool.formToBeSent = JSON.parse(this.value); }
+        try {
+            tool.formToBeSent = JSON.parse(this.value);
+            publishToUI5();
+        }
         catch { showToast('Invalid JSON', 'error'); }
     }
-
-    // Publish to parent window (if running inside UI5 dialog)
-    window.parent.postMessage({
-        action: 'toolOpened',
-        sampleForm: tool.formToBeSent || {}
-    }, '*');
 
     // Init form editor from current formToBeSent
     try {
@@ -268,6 +305,9 @@ function showToolDetail(agentIdx, toolIdx) {
     renderApiCalls();
     generateFunctionCode();
 
+    // Initial publish down to UI5
+    publishToUI5();
+
     resetMetadataUI();
 }
 
@@ -280,10 +320,10 @@ function cleanupFormJSON() {
         const json = JSON.parse(editor.value);
         const cleaned = deepCleanValues(json);
         editor.value = JSON.stringify(cleaned, null, 2);
-        const tool = state.agents[state.currentAgent].tools[state.currentTool];
-        tool.formToBeSent = cleaned;
-        showToast('Values cleaned', 'success');
-    } catch { showToast('Invalid JSON', 'error'); }
+        state.agents[state.currentAgent].tools[state.currentTool].formToBeSent = cleaned;
+        publishToUI5();
+        showToast('Form JSON cleaned up');
+    } catch { showToast('Invalid Form JSON', 'error'); }
 }
 
 function deepCleanValues(obj) {
@@ -307,6 +347,7 @@ function loadIntoEditor() {
         const json = JSON.parse(editor.value);
         state.sampleFormDef = jsonToFormDef(json);
         renderFormEditor();
+        publishToUI5(); // Added publishToUI5
         showToast('Loaded into editor', 'success');
     } catch (e) { showToast('Invalid JSON: ' + e.message, 'error'); }
 }
@@ -440,11 +481,16 @@ function getFieldAtPath(path) {
 
 function addFormField(path) {
     const fields = getFieldsArray(path);
-    fields.push({
-        label: '', type: 'string', fieldLabel: '',
-        mandatory: false, entity: '', value: ''
-    });
+    const newField = {
+        label: 'newProperty',
+        fieldLabel: 'New Property',
+        type: 'string',
+        entity: '',
+        mandatory: false
+    };
+    fields.push(newField);
     renderFormEditor();
+    publishToUI5();
 }
 
 function deleteFormField(path) {
@@ -454,11 +500,13 @@ function deleteFormField(path) {
     const fields = getFieldsArray(parentPath);
     fields.splice(idx, 1);
     renderFormEditor();
+    publishToUI5();
 }
 
 function updateFormField(path, prop, value) {
     const field = getFieldAtPath(path);
-    if (field) field[prop] = value;
+    if (field) field[prop] = prop === 'mandatory' ? (value === 'true' || value === true) : value;
+    publishToUI5(); // Don't full re-render on every keystroke, but DO publish
 }
 
 function changeFieldType(path, newType) {
@@ -468,6 +516,7 @@ function changeFieldType(path, newType) {
     if (newType === 'table' && !field.table) field.table = [];
     if (newType === 'Checkbox') field.value = false;
     renderFormEditor();
+    publishToUI5();
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -478,9 +527,11 @@ function createFormToBeSent() {
     const editor = document.getElementById('form-json-editor');
     editor.value = JSON.stringify(json, null, 2);
     autoGrow(editor);
-    const tool = state.agents[state.currentAgent].tools[state.currentTool];
-    tool.formToBeSent = json;
-    showToast('formToBeSent created', 'success');
+
+    // Save back to tool
+    state.agents[state.currentAgent].tools[state.currentTool].formToBeSent = json;
+    publishToUI5();
+    showToast('Form To Be Sent regenerated.', 'success');
 }
 
 function formDefToJson(fields) {
@@ -626,6 +677,7 @@ function generateFromMetadata() {
     state.sampleFormDef = jsonToFormDef(formJson);
     renderFormEditor();
 
+    publishToUI5();
     showToast(`Generated from ${entityName}`, 'success');
 }
 
@@ -644,20 +696,54 @@ function edmDefaultValue(edmType) {
 function renderApiCalls() {
     const container = document.getElementById('api-calls-list');
     if (!state.apiCalls || state.apiCalls.length === 0) {
-        container.innerHTML = '<div class="fe-empty">No API calls. Click \"+ Add API Call\" to start.</div>';
+        container.innerHTML = '<div class="fe-empty">No API calls. Click "+ Add API Call" to start.</div>';
         return;
     }
-    container.innerHTML = state.apiCalls.map((ac, i) => `
-        <div class="api-call-row">
-            <button class="btn-delete" onclick="deleteApiCall(${i})" title="Delete">&times;</button>
-            <span class="fe-label">Label</span>
-            <input class="fe-input fe-input-wide" value="${escHtml(ac.label || '')}" onchange="updateApiCall(${i},'label',this.value)">
-            <span class="fe-label">Service</span>
-            <input class="fe-input fe-input-wide" value="${escHtml(ac.serviceName || '')}" onchange="updateApiCall(${i},'serviceName',this.value)">
-            <span class="fe-label">EntitySet</span>
-            <input class="fe-input fe-input-wide" value="${escHtml(ac.entitySetName || '')}" onchange="updateApiCall(${i},'entitySetName',this.value)">
-        </div>
-    `).join('');
+    container.innerHTML = state.apiCalls.map((ac, i) => {
+        const op = ac.operation || 'Read';
+
+        let extraFieldsHtml = '';
+        if (op === 'Read') {
+            extraFieldsHtml = `
+                <div style="margin-top:8px;">
+                    <span class="fe-label">Query Fields (comma separated)</span>
+                    <input class="fe-input fe-input-wide" value="${escHtml(ac.queryFields || '')}" onchange="updateApiCall(${i},'queryFields',this.value)" placeholder="e.g. userId, status">
+                </div>
+            `;
+        } else {
+            extraFieldsHtml = `
+                <div style="margin-top:8px;">
+                    <span class="fe-label">Key Fields (comma separated)</span>
+                    <input class="fe-input fe-input-wide" value="${escHtml(ac.keyFields || '')}" onchange="updateApiCall(${i},'keyFields',this.value)" placeholder="e.g. ID, orderNumber">
+                </div>
+            `;
+        }
+
+        return `
+            <div class="api-call-row" style="flex-direction:column; align-items:flex-start;">
+                <div style="display:flex; width:100%; align-items:center; gap:8px;">
+                    <button class="btn-delete" onclick="deleteApiCall(${i})" title="Delete">&times;</button>
+                    <span class="fe-label">Label</span>
+                    <input class="fe-input" style="flex:1" value="${escHtml(ac.label || '')}" onchange="updateApiCall(${i},'label',this.value)">
+                    
+                    <span class="fe-label">Service</span>
+                    <input class="fe-input" style="flex:1" value="${escHtml(ac.serviceName || '')}" onchange="updateApiCall(${i},'serviceName',this.value)">
+                    
+                    <span class="fe-label">EntitySet</span>
+                    <input class="fe-input" style="flex:1" value="${escHtml(ac.entitySetName || '')}" onchange="updateApiCall(${i},'entitySetName',this.value)">
+                    
+                    <span class="fe-label">Operation</span>
+                    <select class="fe-select" onchange="updateApiCall(${i},'operation',this.value)">
+                        <option value="Read" ${op === 'Read' ? 'selected' : ''}>Read</option>
+                        <option value="Create" ${op === 'Create' ? 'selected' : ''}>Create</option>
+                        <option value="Update" ${op === 'Update' ? 'selected' : ''}>Update</option>
+                        <option value="Delete" ${op === 'Delete' ? 'selected' : ''}>Delete</option>
+                    </select>
+                </div>
+                ${extraFieldsHtml}
+            </div>
+        `;
+    }).join('');
 }
 
 function addApiCall() {
@@ -674,6 +760,9 @@ function deleteApiCall(idx) {
 
 function updateApiCall(idx, prop, value) {
     state.apiCalls[idx][prop] = value;
+    if (prop === 'operation') {
+        renderApiCalls(); // re-render to switch extra fields input
+    }
     generateFunctionCode();
 }
 
@@ -695,11 +784,53 @@ function generateFunctionCode() {
         const label = ac.label || `result${i}`;
         const svc = ac.serviceName || 'UnknownService';
         const entity = ac.entitySetName || 'UnknownEntity';
-        lines.push(`    // ${label}`);
+        const op = ac.operation || 'Read';
+        const queryFields = ac.queryFields ? ac.queryFields.split(',').map(s => s.trim()).filter(s => s) : [];
+        const keyFields = ac.keyFields ? ac.keyFields.split(',').map(s => s.trim()).filter(s => s) : [];
+
+        lines.push(`    // ${label} (${op})`);
         lines.push(`    const srv${i} = await cds.connect.to('${svc}');`);
-        lines.push(`    const query${i} = SELECT.from('${entity}').where(inputPayload);`);
-        lines.push(`    const data${i} = await srv${i}.run(query${i});`);
-        lines.push(`    results.push({ ${label}: data${i} });`);
+
+        if (op === 'Read') {
+            lines.push(`    const condition${i} = {};`);
+            if (queryFields.length > 0) {
+                queryFields.forEach(f => {
+                    lines.push(`    if (inputPayload['${f}'] !== undefined && inputPayload['${f}'] !== '') { condition${i}['${f}'] = inputPayload['${f}']; }`);
+                });
+            } else {
+                lines.push(`    for (const key in inputPayload) {`);
+                lines.push(`        if (inputPayload[key] !== undefined && inputPayload[key] !== '') { condition${i}[key] = inputPayload[key]; }`);
+                lines.push(`    }`);
+            }
+            lines.push(`    const query${i} = Object.keys(condition${i}).length > 0 ? SELECT.from('${entity}').where(condition${i}) : SELECT.from('${entity}');`);
+            lines.push(`    const data${i} = await srv${i}.run(query${i});`);
+            lines.push(`    results.push({ ${label}: data${i} });`);
+        } else {
+            lines.push(`    const keyObj${i} = {};`);
+            if (keyFields.length > 0) {
+                keyFields.forEach(k => {
+                    lines.push(`    keyObj${i}['${k}'] = inputPayload['${k}'];`);
+                });
+            } else {
+                lines.push(`    // No keys defined. Beware this might affect multiple records!`);
+            }
+
+            lines.push(`    const dataObj${i} = { ...inputPayload }; // Customize payload mapped to fields as needed`);
+
+            if (op === 'Create') {
+                lines.push(`    const query${i} = INSERT.into('${entity}').entries(dataObj${i});`);
+                lines.push(`    const data${i} = await srv${i}.run(query${i});`);
+                lines.push(`    results.push({ ${label}: data${i} || 'Created successfully' });`);
+            } else if (op === 'Update') {
+                lines.push(`    const query${i} = UPDATE('${entity}').with(dataObj${i}).where(keyObj${i});`);
+                lines.push(`    const data${i} = await srv${i}.run(query${i});`);
+                lines.push(`    results.push({ ${label}: data${i} || 'Updated successfully' });`);
+            } else if (op === 'Delete') {
+                lines.push(`    const query${i} = DELETE.from('${entity}').where(keyObj${i});`);
+                lines.push(`    const data${i} = await srv${i}.run(query${i});`);
+                lines.push(`    results.push({ ${label}: data${i} || 'Deleted successfully' });`);
+            }
+        }
         lines.push('');
     });
 
@@ -708,6 +839,7 @@ function generateFunctionCode() {
 
     preview.value = lines.join('\n');
     autoGrow(preview);
+    publishToUI5();
 }
 
 // ═══════════════════════════════════════════════════════════

@@ -25,6 +25,25 @@
     --font: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
+:root[data-theme="light"] {
+    --bg-base: #f9fafb;
+    --bg-surface: #ffffff;
+    --bg-elevated: #f3f4f6;
+    --bg-hover: #e5e7eb;
+    --border: #d1d5db;
+    --border-focus: #4f46e5;
+    --text: #111827;
+    --text-muted: #4b5563;
+    --text-dim: #9ca3af;
+    --primary: #6d28d9;
+    --primary-light: #8b5cf6;
+    --secondary: #2563eb;
+    --success: #059669;
+    --danger: #dc2626;
+    --warning: #d97706;
+    --shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
 *,
 *::before,
 *::after {

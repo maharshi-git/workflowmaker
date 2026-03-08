@@ -8,7 +8,9 @@ sap.ui.define([
     return Controller.extend("workflowmaker.controller.App", {
         onInit: function () {
             var oViewModel = new JSONModel({
-                sampleFormJson: "{\n}",
+                sampleForm: "{\n}",
+                formToBeSent: "{\n}",
+                queryCode: "// No code yet",
                 selectedTab: "manager"
             });
             this.getView().setModel(oViewModel, "appView");
@@ -18,10 +20,18 @@ sap.ui.define([
         },
 
         _onWindowMessage: function (oEvent) {
-            if (oEvent.data && oEvent.data.action === "toolOpened") {
+            if (oEvent.data && oEvent.data.action === "toolUpdated") {
                 this.getView().getModel("appView").setProperty(
-                    "/sampleFormJson",
-                    JSON.stringify(oEvent.data.sampleForm || {}, null, 2)
+                    "/sampleForm",
+                    JSON.stringify(oEvent.data.sampleForm || [], null, 2)
+                );
+                this.getView().getModel("appView").setProperty(
+                    "/formToBeSent",
+                    JSON.stringify(oEvent.data.formToBeSent || {}, null, 2)
+                );
+                this.getView().getModel("appView").setProperty(
+                    "/queryCode",
+                    oEvent.data.queryCode || "// No code generated yet"
                 );
             }
         },
@@ -59,6 +69,21 @@ sap.ui.define([
             }
             this._pWorkflowDialog.then(function (oDialog) {
                 oDialog.open();
+
+                // Wait slightly for iframe to render if first time, then sync Fiori theme
+                setTimeout(function () {
+                    var oIframe = document.getElementById("manageIframe");
+                    if (oIframe && oIframe.contentWindow) {
+                        // Check if current Fiori theme has 'dark' or 'light'
+                        var sTheme = sap.ui.getCore().getConfiguration().getTheme();
+                        var targetTheme = sTheme.toLowerCase().includes("dark") ? "dark" : "light";
+
+                        oIframe.contentWindow.postMessage({
+                            action: 'setTheme',
+                            theme: targetTheme
+                        }, "*");
+                    }
+                }, 300);
             });
         },
 

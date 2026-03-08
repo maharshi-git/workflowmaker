@@ -17,7 +17,9 @@
                 <IconTabBar id="idIconTabBar" select=".onTabSelect" expanded="{device>/isNoPhone}" class="sapUiNoContentPadding" stretchContentHeight="false">
                     <items>
                         <IconTabFilter text="Manager" key="manager" />
-                        <IconTabFilter text="Sample Form (JSON)" key="json" />
+                        <IconTabFilter text="Sample Form" key="sampleFormView" />
+                        <IconTabFilter text="Form To Be Sent" key="formToBeSentView" />
+                        <IconTabFilter text="Query Code" key="queryCodeView" />
                     </items>
                 </IconTabBar>
 
@@ -27,9 +29,19 @@
                     <core:HTML content='&lt;iframe id="manageIframe" src="http://localhost:8000/manage" style="border:none; width:100%; height:100%; display:block;"&gt;&lt;/iframe&gt;' />
                 </VBox>
 
-                <!-- Container for JSON Editor -->
-                <VBox id="jsonView" height="100%" width="100%" renderType="Bare" visible="{= ${appView>/selectedTab} === 'json'}">
-                    <ce:CodeEditor id="ceSampleForm" type="json" value="{appView>/sampleFormJson}" height="100%" width="100%" />
+                <!-- Container for Sample Form -->
+                <VBox id="sampleFormBox" height="100%" width="100%" renderType="Bare" visible="{= ${appView>/selectedTab} === 'sampleFormView'}">
+                    <ce:CodeEditor id="ceSampleForm" type="json" value="{appView>/sampleForm}" height="100%" width="100%" />
+                </VBox>
+
+                <!-- Container for Form To Be Sent -->
+                <VBox id="formToBeSentBox" height="100%" width="100%" renderType="Bare" visible="{= ${appView>/selectedTab} === 'formToBeSentView'}">
+                    <ce:CodeEditor id="ceFormToBeSent" type="json" value="{appView>/formToBeSent}" height="100%" width="100%" />
+                </VBox>
+
+                <!-- Container for Query Code -->
+                <VBox id="queryCodeBox" height="100%" width="100%" renderType="Bare" visible="{= ${appView>/selectedTab} === 'queryCodeView'}">
+                    <ce:CodeEditor id="ceQueryCode" type="javascript" value="{appView>/queryCode}" height="100%" width="100%" />
                 </VBox>
             </VBox>
         </content>
