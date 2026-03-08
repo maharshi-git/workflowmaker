@@ -31,7 +31,6 @@ app.include_router(router)
 
 # Serve frontend static files
 app.mount("/manage", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")
-app.mount("/ui5", StaticFiles(directory=UI5_DIR, html=True), name="ui5")
 
 
 if __name__ == "__main__":

@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Workflow Maker UI5</title>
+
+    <script id="sap-ui-bootstrap" src="https://ui5.sap.com/resources/sap-ui-core.js"
+        data-sap-ui-theme="sap_horizon_dark" data-sap-ui-resourceroots='{"workflowmaker": "./"}'
+        data-sap-ui-oninit="module:sap/ui/core/ComponentSupport" data-sap-ui-compatVersion="edge"
+        data-sap-ui-async="true">
+        </script>
+
+    <style>
+        html,
+        body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+
+        .fullHeight {
+            height: 100%;
+        }
+
+        /* Remove margin/padding from UI5 pages to let iframe fill screen */
+        .sapMPage,
+        .sapMPageScroll {
+            padding: 0 !important;
+            margin: 0 !important;
+        }
+
+        .hiddenIframe {
+            position: absolute !important;
+            left: -9999px !important;
+            height: 0 !important;
+            width: 0 !important;
+            opacity: 0 !important;
+        }
+    </style>
+</head>
+
+<body class="sapUiBody" id="content">
+    <div data-sap-ui-component data-name="workflowmaker" data-id="container" data-settings='{"id" : "workflowmaker"}'
+        class="fullHeight"></div>
+</body>
+
+</html>

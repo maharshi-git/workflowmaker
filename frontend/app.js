@@ -248,7 +248,13 @@ function showToolDetail(agentIdx, toolIdx) {
     document.getElementById('form-json-editor').onchange = function () {
         try { tool.formToBeSent = JSON.parse(this.value); }
         catch { showToast('Invalid JSON', 'error'); }
-    };
+    }
+
+    // Publish to parent window (if running inside UI5 dialog)
+    window.parent.postMessage({
+        action: 'toolOpened',
+        sampleForm: tool.formToBeSent || {}
+    }, '*');
 
     // Init form editor from current formToBeSent
     try {

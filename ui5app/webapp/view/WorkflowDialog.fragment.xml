@@ -1,0 +1,42 @@
+<core:FragmentDefinition
+    xmlns="sap.m"
+    xmlns:core="sap.ui.core"
+    xmlns:ce="sap.ui.codeeditor">
+    <Dialog 
+        id="workflowDialog"
+        title="Workflow Maker"
+        contentWidth="90vw"
+        contentHeight="90vh"
+        resizable="true"
+        draggable="true"
+        verticalScrolling="false"
+        horizontalScrolling="false">
+        
+        <content>
+            <VBox height="100%" class="sapUiNoContentPadding">
+                <IconTabBar id="idIconTabBar" select=".onTabSelect" expanded="{device>/isNoPhone}" class="sapUiNoContentPadding" stretchContentHeight="false">
+                    <items>
+                        <IconTabFilter text="Manager" key="manager" />
+                        <IconTabFilter text="Sample Form (JSON)" key="json" />
+                    </items>
+                </IconTabBar>
+
+                <!-- Container for IFRAME using flex layout to take remaining space -->
+                <!-- We must not use visible binding for managerView, otherwise UI5 will destroy the iframe causing reloads. We toggle via class. -->
+                <VBox id="managerView" height="100%" width="100%" renderType="Bare">
+                    <core:HTML content='&lt;iframe id="manageIframe" src="http://localhost:8000/manage" style="border:none; width:100%; height:100%; display:block;"&gt;&lt;/iframe&gt;' />
+                </VBox>
+
+                <!-- Container for JSON Editor -->
+                <VBox id="jsonView" height="100%" width="100%" renderType="Bare" visible="{= ${appView>/selectedTab} === 'json'}">
+                    <ce:CodeEditor id="ceSampleForm" type="json" value="{appView>/sampleFormJson}" height="100%" width="100%" />
+                </VBox>
+            </VBox>
+        </content>
+        
+        <buttons>
+            <Button text="Close" press=".onCloseWorkflowDialog" />
+        </buttons>
+        
+    </Dialog>
+</core:FragmentDefinition>
