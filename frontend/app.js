@@ -929,6 +929,150 @@ function generateFunctionCode() {
     preview.value = lines.join('\n');
     autoGrow(preview);
     publishToUI5();
+    renderVisualMode(); // Update visual representation
+}
+
+function switchFuncTab(mode) {
+    document.getElementById('btn-func-visual').classList.toggle('active', mode === 'visual');
+    document.getElementById('btn-func-developer').classList.toggle('active', mode === 'developer');
+    document.getElementById('func-panel-visual').style.display = mode === 'visual' ? '' : 'none';
+    document.getElementById('func-panel-developer').style.display = mode === 'developer' ? '' : 'none';
+    if (mode === 'visual') renderVisualMode();
+    if (mode === 'developer') {
+        const payloadArea = document.getElementById('fn-payload-json');
+        if (!payloadArea.value) syncPayloadFromForm();
+        renderPayloadBuilder();
+    }
+}
+
+function renderVisualMode() {
+    const container = document.getElementById('func-visual-content');
+    if (!container) return;
+
+    const calls = (state.apiCalls || []).filter(c => c.label || c.serviceName || c.entitySetName);
+    if (calls.length === 0) {
+        container.innerHTML = '<div style="color:var(--text-dim); font-style: italic;">No logic defined yet. Add API calls first.</div>';
+        return;
+    }
+
+    let html = '<div style="display: flex; flex-direction: column; gap: 12px;">';
+    calls.forEach((ac, i) => {
+        const op = ac.operation || 'Read';
+        const svc = ac.serviceName || 'UnknownService';
+        const ent = ac.entitySetName || 'UnknownEntity';
+        const label = ac.label || `Step ${i + 1}`;
+        
+        let desc = '';
+        if (op === 'Read') {
+            const q = ac.queryFields ? ` filtering by <strong>${ac.queryFields}</strong>` : '';
+            desc = `Read data from <strong>${ent}</strong> in <strong>${svc}</strong>${q}.`;
+        } else if (op === 'Create') {
+            desc = `Create a new record in <strong>${ent}</strong> (<strong>${svc}</strong>) using the input data.`;
+        } else if (op === 'Update') {
+            desc = `Update a record in <strong>${ent}</strong> (<strong>${svc}</strong>) where keys match input data.`;
+        } else if (op === 'Delete') {
+            desc = `Delete a record from <strong>${ent}</strong> (<strong>${svc}</strong>) where keys match input data.`;
+        }
+
+        html += `
+            <div style="background: var(--bg-surface); padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--border); border-left: 4px solid var(--primary);">
+                <div style="font-weight: 700; color: var(--primary-light); margin-bottom: 4px; font-size: 13px;">${label}</div>
+                <div style="font-size: 14px; color: var(--text);">${desc}</div>
+            </div>
+        `;
+    });
+    html += '</div>';
+    container.innerHTML = html;
+}
+
+function syncPayloadFromForm() {
+    const payload = {};
+    const extractFields = (fields) => {
+        fields.forEach(f => {
+            if (f.type === 'table') {
+                // For tables, we usually send an array with one dummy record structure
+                const nested = {};
+                (f.table || []).forEach(nf => {
+                    nested[nf.label] = nf.type === 'Checkbox' ? false : (nf.type === 'Date' ? '2023-01-01' : '');
+                });
+                payload[f.label] = [nested];
+            } else {
+                payload[f.label] = f.type === 'Checkbox' ? false : (f.type === 'Date' ? '2023-01-01' : '');
+            }
+        });
+    }
+    extractFields(state.sampleFormDef || []);
+    const area = document.getElementById('fn-payload-json');
+    area.value = JSON.stringify(payload, null, 2);
+    autoGrow(area);
+    renderPayloadBuilder();
+}
+
+function renderPayloadBuilder() {
+    const container = document.getElementById('payload-fields-container');
+    const jsonStr = document.getElementById('fn-payload-json').value;
+    let payload = {};
+    try {
+        payload = JSON.parse(jsonStr || '{}');
+    } catch { }
+
+    const keys = Object.keys(payload);
+    if (keys.length === 0) {
+        container.innerHTML = '<div style="color:var(--text-dim); font-size: 11px;">No fields to show. Click sync to load from form.</div>';
+        return;
+    }
+
+    container.innerHTML = keys.map(k => {
+        const val = payload[k];
+        if (typeof val === 'object' && val !== null) {
+             return `<div class="p-field" style="display:flex; align-items:center; gap:8px;">
+                <span style="font-size:12px; font-weight:500; min-width:100px; color: var(--primary-light);">${k}</span>
+                <span style="color: var(--text-dim); font-size: 12px;">(Complex Object - use raw JSON below)</span>
+             </div>`;
+        }
+        const isBool = typeof val === 'boolean';
+        return `
+            <div class="p-field" style="display:flex; align-items:center; gap:8px;">
+                <span style="font-size:12px; font-weight:500; min-width:100px;">${k}</span>
+                ${isBool 
+                    ? `<input type="checkbox" ${val ? 'checked' : ''} onchange="updatePayloadField('${k}', this.checked)">`
+                    : `<input class="fe-input" style="flex:1" value="${val}" oninput="updatePayloadField('${k}', this.value)">`
+                }
+            </div>
+        `;
+    }).join('');
+}
+
+function updatePayloadField(key, val) {
+    const jsonArea = document.getElementById('fn-payload-json');
+    try {
+        const payload = JSON.parse(jsonArea.value || '{}');
+        payload[key] = val;
+        jsonArea.value = JSON.stringify(payload, null, 2);
+    } catch { }
+}
+
+function updatePayloadFromJSON() {
+    renderPayloadBuilder();
+}
+
+function testRemote() {
+    const functionCode = document.getElementById('fn-code-preview').value;
+    const payloadStr = document.getElementById('fn-payload-json').value;
+    let payload = {};
+    try { 
+        payload = JSON.parse(payloadStr); 
+    } catch {
+        showToast('Invalid Payload JSON', 'error');
+        return;
+    }
+
+    window.parent.postMessage({
+        action: 'testRemote',
+        functionCode: functionCode,
+        inputPayload: payload
+    }, '*');
+    showToast('Sent to remote test...', 'success');
 }
 
 // ═══════════════════════════════════════════════════════════

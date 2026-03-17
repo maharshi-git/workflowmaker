@@ -35,6 +35,9 @@ sap.ui.define([
                 );
             } else if (oEvent.data && oEvent.data.action === "saveTool") {
                 this.datamanager(oEvent.data.tool, oEvent.data.sampleForm, oEvent.data.queryCode);
+            } else if (oEvent.data && oEvent.data.action === "testRemote") {
+                console.log("Remote Test Triggered:", oEvent.data.functionCode, oEvent.data.inputPayload);
+                sap.m.MessageToast.show("Remote test triggered for: " + (oEvent.data.inputPayload ? JSON.stringify(oEvent.data.inputPayload) : "No Payload"));
             }
         },
 

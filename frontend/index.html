@@ -266,12 +266,47 @@
                     </div>
                 </div>
                 <div class="card-body">
-                    <div id="api-calls-list">
+                    <div id="api-calls-list" style="margin-bottom: 24px;">
                         <div class="fe-empty">No API calls. Click "+ Add API Call" to start.</div>
                     </div>
-                    <h3 style="margin-top:20px;">Generated Function</h3>
-                    <textarea class="form-textarea code-editor" id="fn-code-preview" rows="18" spellcheck="false"
-                        readonly></textarea>
+
+                    <div class="sf-tabs">
+                        <button class="sf-tab active" id="btn-func-visual" onclick="switchFuncTab('visual')">Visual Mode</button>
+                        <button class="sf-tab" id="btn-func-developer" onclick="switchFuncTab('developer')">Developer Mode</button>
+                    </div>
+
+                    <!-- Visual Mode Panel -->
+                    <div id="func-panel-visual" class="sf-panel">
+                        <div id="func-visual-content" style="padding: 12px; background: var(--bg-elevated); border-radius: var(--radius-sm); border: 1px solid var(--border); min-height: 100px;">
+                            <div style="color:var(--text-dim); font-style: italic;">No logic defined yet.</div>
+                        </div>
+                    </div>
+
+                    <!-- Developer Mode Panel -->
+                    <div id="func-panel-developer" class="sf-panel" style="display:none;">
+                        <div class="dev-mode-layout" style="display: flex; flex-direction: column; gap: 16px;">
+                            <div class="code-section">
+                                <label style="font-size: 13px; font-weight: 600; margin-bottom: 8px; display: block;">Generated Function Code</label>
+                                <textarea class="form-textarea code-editor" id="fn-code-preview" rows="12" spellcheck="false" readonly></textarea>
+                            </div>
+
+                            <div class="payload-builder" style="padding: 16px; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-sm);">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                                    <label style="font-size: 13px; font-weight: 600;">Dummy Input Payload</label>
+                                    <button class="btn btn-outline btn-sm" onclick="syncPayloadFromForm()">Sync from Sample Form</button>
+                                </div>
+                                <div id="payload-fields-container" style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px;">
+                                    <!-- Fields will be dynamically generated here -->
+                                </div>
+                                <label style="font-size: 12px; font-weight: 500; color: var(--text-muted); margin-bottom: 4px; display: block;">Raw Payload (JSON)</label>
+                                <textarea class="form-textarea code-editor" id="fn-payload-json" rows="6" spellcheck="false" onchange="updatePayloadFromJSON()"></textarea>
+                                
+                                <div style="margin-top: 16px; border-top: 1px solid var(--border); padding-top: 16px; display: flex; justify-content: flex-end;">
+                                    <button class="btn btn-success" onclick="testRemote()">Test Remote</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
