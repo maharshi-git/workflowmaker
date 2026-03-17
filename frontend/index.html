@@ -54,7 +54,10 @@
         <div id="view-agents" class="view active">
             <div class="view-toolbar">
                 <h2>Agents</h2>
-                <button class="btn btn-primary" onclick="addAgent()">+ Add Agent</button>
+                <div style="display: flex; gap: 8px;">
+                    <input type="text" id="search-agents" class="form-input" placeholder="Search agents..." oninput="showAgentsList()" style="width: 250px;">
+                    <button class="btn btn-primary" onclick="addAgent()">+ Add Agent</button>
+                </div>
             </div>
             <div class="agents-tabs">
                 <button class="agents-tab active" data-vt="table" onclick="switchAgentsView('table')">Table</button>
@@ -98,7 +101,10 @@
             </div>
             <div class="view-toolbar" style="margin-top:24px;">
                 <h3>Tools</h3>
-                <button class="btn btn-primary btn-sm" onclick="addTool()">+ Add Tool</button>
+                <div style="display: flex; gap: 8px;">
+                    <input type="text" id="search-tools" class="form-input" placeholder="Search tools..." oninput="renderToolsList()" style="width: 250px;">
+                    <button class="btn btn-primary btn-sm" onclick="addTool()">+ Add Tool</button>
+                </div>
             </div>
             <div class="table-wrap">
                 <table id="tools-table">
@@ -130,6 +136,46 @@
                     <div class="form-group">
                         <label>Tool Definition</label>
                         <textarea class="form-textarea" id="det-tool-def" rows="3"></textarea>
+                    </div>
+                    <div class="form-group" style="display: flex; gap: 16px;">
+                        <label style="display: flex; align-items: center; gap: 6px;">
+                            <input type="checkbox" id="det-tool-active" style="width:16px; height:16px; accent-color: var(--primary);"> Active
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 6px;">
+                            <input type="checkbox" id="det-tool-default-report-view" style="width:16px; height:16px; accent-color: var(--primary);"> Default Report View
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label>Title</label>
+                        <input class="form-input" id="det-tool-title">
+                    </div>
+                    <div class="form-group">
+                        <label>Knowledge</label>
+                        <input class="form-input" id="det-tool-knowledge">
+                    </div>
+                    <div class="form-group">
+                        <label>App Link</label>
+                        <input class="form-input" id="det-tool-applink">
+                    </div>
+                    <div class="form-group">
+                        <label>Static Instruction</label>
+                        <textarea class="form-textarea" id="det-tool-static-instruction" rows="2"></textarea>
+                    </div>
+                    <div style="display: flex; gap: 16px;">
+                        <div class="form-group" style="flex: 1;">
+                            <label>Operation Type</label>
+                            <select class="form-input" id="det-tool-operation-type" onchange="handleOperationTypeChange()">
+                                <option value="">Select Type</option>
+                                <option value="CRUD">CRUD</option>
+                                <option value="RAG">RAG</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="flex: 1;">
+                            <label>Operation Subtype</label>
+                            <select class="form-input" id="det-tool-operation-subtype">
+                                <!-- Populated dynamically based on Operation Type -->
+                            </select>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -191,7 +237,7 @@
                     </div>
                     <div id="sf-panel-json" class="sf-panel" style="display:none;">
                         <textarea class="form-textarea code-editor" id="sf-json-view" rows="16" spellcheck="false"
-                            readonly></textarea>
+                            onchange="updateFormFromJson()"></textarea>
                     </div>
                 </div>
             </div>

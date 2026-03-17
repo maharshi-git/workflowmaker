@@ -104,6 +104,9 @@ body {
     display: flex;
     gap: 6px;
     align-items: center;
+    position: sticky;
+    top: 56px;
+    z-index: 99;
 }
 
 .crumb {
@@ -835,33 +838,33 @@ select.form-input {
     bottom: 0;
     width: 3px;
     background: #6366f1;
-    border-radius: 2px;
 }
 
-/* Last child: vertical stops at node center */
+/* Last child: no continuous vertical line below the curve */
 .flow-children>.flow-branch:last-child::after {
-    bottom: auto;
-    height: 23px;
+    display: none;
 }
 
-/* Horizontal arm from vertical line → node */
+/* Horizontal arm from vertical line → node (curved) */
 .flow-children>.flow-branch::before {
     content: '';
     position: absolute;
     left: -32px;
-    top: 20px;
+    top: 0;
     width: 32px;
-    height: 3px;
-    background: #6366f1;
-    border-radius: 2px;
+    height: 22px;
+    border-left: 3px solid #6366f1;
+    border-bottom: 3px solid #6366f1;
+    border-bottom-left-radius: 12px;
+    background: transparent;
 }
 
 /* Stem from parent node down into children vertical line */
 .flow-children::before {
     content: '';
     position: absolute;
-    left: -12px;
-    top: -4px;
+    left: -32px;
+    top: -12px; /* Connect from the parent */
     width: 3px;
     height: 12px;
     background: #6366f1;

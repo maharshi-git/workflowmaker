@@ -86,18 +86,26 @@ function showAgentsList() {
     setBreadcrumb([{ label: 'Agents' }]);
     showView('view-agents');
 
+    const searchInput = document.getElementById('search-agents');
+    const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
+
+    const sortedAgents = state.agents.map((a, i) => ({ ...a, _oIdx: i })).filter(a => 
+        (a.agentName || '').toLowerCase().includes(searchTerm) || 
+        (a.agentDefinition || '').toLowerCase().includes(searchTerm)
+    );
+
     const tbody = document.querySelector('#agents-table tbody');
-    tbody.innerHTML = state.agents.map((a, i) => `
-        <tr onclick="showAgentDetail(${i})">
-            <td>${i + 1}</td>
+    tbody.innerHTML = sortedAgents.map(a => `
+        <tr onclick="showAgentDetail(${a._oIdx})">
+            <td>${a._oIdx + 1}</td>
             <td style="font-weight:600;color:var(--primary-light)">${a.agentName}</td>
             <td style="color:var(--text-muted)">${truncate(a.agentDefinition || '', 80)}</td>
             <td>${(a.tools || []).length}</td>
             <td class="td-actions">
-                <button class="btn-delete" onclick="event.stopPropagation();deleteAgent(${i})" title="Delete">&times;</button>
+                <button class="btn-delete" onclick="event.stopPropagation();deleteAgent(${a._oIdx})" title="Delete">&times;</button>
             </td>
         </tr>
-    `).join('') || '<tr><td colspan="5" style="text-align:center;color:var(--text-dim);padding:32px;">No agents configured</td></tr>';
+    `).join('') || '<tr><td colspan="5" style="text-align:center;color:var(--text-dim);padding:32px;">No agents found</td></tr>';
 
     renderFlowchart();
 }
@@ -117,9 +125,12 @@ function renderFlowchart() {
     const container = document.getElementById('flow-container');
     const agents = state.agents;
 
+    const searchInput = document.getElementById('search-agents');
+    const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
+
     const orchIdx = agents.findIndex(a => /orchestrat/i.test(a.agentName));
     const orch = orchIdx >= 0 ? agents[orchIdx] : null;
-    const childAgents = agents.filter((_, i) => i !== orchIdx);
+    const childAgents = agents.filter((a, i) => i !== orchIdx && (!searchTerm || (a.agentName || '').toLowerCase().includes(searchTerm) || (a.agentDefinition || '').toLowerCase().includes(searchTerm)));
 
     let html = '<div class="flow-tree">';
 
@@ -186,7 +197,7 @@ function flowNavToTool(agentIdx, toolIdx) {
 function addAgent() {
     const name = prompt('Agent name:');
     if (!name) return;
-    if (state.agents.some(a => a.agentName === name)) { showToast('Name already exists', 'error'); return; }
+    if (state.agents.some(a => (a.agentName || '').toLowerCase() === name.toLowerCase())) { showToast('Name already exists', 'error'); return; }
     state.agents.push({ agentName: name, agentDefinition: '', tools: [] });
     showAgentsList();
     showToast(`Agent "${name}" added`, 'success');
@@ -217,24 +228,42 @@ function showAgentDetail(idx) {
     document.getElementById('det-agent-name').onchange = function () { agent.agentName = this.value; };
     document.getElementById('det-agent-def').onchange = function () { agent.agentDefinition = this.value; };
 
-    const tbody = document.querySelector('#tools-table tbody');
+    renderToolsList();
+}
+
+function renderToolsList() {
+    const agent = state.agents[state.currentAgent];
+    if (!agent) return;
+    
+    const searchInput = document.getElementById('search-tools');
+    const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
     const tools = agent.tools || [];
-    tbody.innerHTML = tools.map((t, i) => `
-        <tr onclick="showToolDetail(${idx}, ${i})">
-            <td>${i + 1}</td>
-            <td style="font-weight:600;color:var(--success)">${t.toolName}</td>
-            <td style="color:var(--text-muted)">${truncate(t.toolDefinition || '', 80)}</td>
-            <td class="td-actions">
-                <button class="btn-delete" onclick="event.stopPropagation();deleteTool(${idx},${i})" title="Delete">&times;</button>
-            </td>
-        </tr>
-    `).join('') || '<tr><td colspan="4" style="text-align:center;color:var(--text-dim);padding:32px;">No tools</td></tr>';
+    
+    const filteredTools = tools.map((t, i) => ({ ...t, _oIdx: i })).filter(t => 
+        (t.toolName || '').toLowerCase().includes(searchTerm) || 
+        (t.toolDefinition || '').toLowerCase().includes(searchTerm)
+    );
+
+    const tbody = document.querySelector('#tools-table tbody');
+    if (tbody) {
+        tbody.innerHTML = filteredTools.map(t => `
+            <tr onclick="showToolDetail(${state.currentAgent}, ${t._oIdx})">
+                <td>${t._oIdx + 1}</td>
+                <td style="font-weight:600;color:var(--success)">${t.toolName}</td>
+                <td style="color:var(--text-muted)">${truncate(t.toolDefinition || '', 80)}</td>
+                <td class="td-actions">
+                    <button class="btn-delete" onclick="event.stopPropagation();deleteTool(${state.currentAgent},${t._oIdx})" title="Delete">&times;</button>
+                </td>
+            </tr>
+        `).join('') || '<tr><td colspan="4" style="text-align:center;color:var(--text-dim);padding:32px;">No tools found</td></tr>';
+    }
 }
 
 function addTool() {
     const name = prompt('Tool name:');
     if (!name) return;
     const agent = state.agents[state.currentAgent];
+    if (agent.tools && agent.tools.some(t => (t.toolName || '').toLowerCase() === name.toLowerCase())) { showToast('Tool name already exists', 'error'); return; }
     if (!agent.tools) agent.tools = [];
     agent.tools.push({ toolName: name, toolDefinition: '', formToBeSent: {} });
     showAgentDetail(state.currentAgent);
@@ -279,12 +308,28 @@ function showToolDetail(agentIdx, toolIdx) {
     ]);
     showView('view-tool-detail');
 
-    document.getElementById('det-tool-name').value = tool.toolName;
+    document.getElementById('det-tool-name').value = tool.toolName || '';
     document.getElementById('det-tool-def').value = tool.toolDefinition || '';
+    document.getElementById('det-tool-active').checked = !!tool.active;
+    document.getElementById('det-tool-default-report-view').checked = !!tool.defaultReportView;
+    document.getElementById('det-tool-title').value = tool.title || '';
+    document.getElementById('det-tool-knowledge').value = tool.knowledge || '';
+    document.getElementById('det-tool-applink').value = tool.appLink || '';
+    document.getElementById('det-tool-static-instruction').value = tool.staticInstruction || '';
+    document.getElementById('det-tool-operation-type').value = tool.operationType || '';
+    updateOperationSubtypeOptions(tool.operationType || '');
+    document.getElementById('det-tool-operation-subtype').value = tool.operationSubtype || '';
     document.getElementById('form-json-editor').value = JSON.stringify(tool.formToBeSent || {}, null, 2);
 
-    document.getElementById('det-tool-name').onchange = function () { tool.toolName = this.value; };
-    document.getElementById('det-tool-def').onchange = function () { tool.toolDefinition = this.value; };
+    document.getElementById('det-tool-name').onchange = function () { tool.toolName = this.value; publishToUI5(); };
+    document.getElementById('det-tool-def').onchange = function () { tool.toolDefinition = this.value; publishToUI5(); };
+    document.getElementById('det-tool-active').onchange = function () { tool.active = this.checked; publishToUI5(); };
+    document.getElementById('det-tool-default-report-view').onchange = function () { tool.defaultReportView = this.checked; publishToUI5(); };
+    document.getElementById('det-tool-title').onchange = function () { tool.title = this.value; publishToUI5(); };
+    document.getElementById('det-tool-knowledge').onchange = function () { tool.knowledge = this.value; publishToUI5(); };
+    document.getElementById('det-tool-applink').onchange = function () { tool.appLink = this.value; publishToUI5(); };
+    document.getElementById('det-tool-static-instruction').onchange = function () { tool.staticInstruction = this.value; publishToUI5(); };
+    document.getElementById('det-tool-operation-subtype').onchange = function () { tool.operationSubtype = this.value; publishToUI5(); };
     document.getElementById('form-json-editor').onchange = function () {
         try {
             tool.formToBeSent = JSON.parse(this.value);
@@ -309,6 +354,29 @@ function showToolDetail(agentIdx, toolIdx) {
     publishToUI5();
 
     resetMetadataUI();
+}
+
+function handleOperationTypeChange() {
+    if (state.currentAgent === null || state.currentTool === null) return;
+    const tool = state.agents[state.currentAgent].tools[state.currentTool];
+    const newType = document.getElementById('det-tool-operation-type').value;
+    tool.operationType = newType;
+    tool.operationSubtype = ''; 
+    updateOperationSubtypeOptions(newType);
+}
+
+function updateOperationSubtypeOptions(type) {
+    const subtypeSelect = document.getElementById('det-tool-operation-subtype');
+    subtypeSelect.innerHTML = '';
+    
+    if (type === 'CRUD') {
+        const options = ['CREATE', 'READ', 'UPDATE', 'DELETE'];
+        subtypeSelect.innerHTML = '<option value="">Select Subtype</option>' + options.map(opt => `<option value="${opt}">${opt}</option>`).join('');
+        subtypeSelect.disabled = false;
+    } else {
+        subtypeSelect.innerHTML = '<option value="">Not Applicable</option>';
+        subtypeSelect.disabled = true;
+    }
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -402,6 +470,23 @@ function switchSFTab(tab) {
     // Sync JSON when switching to JSON tab
     if (tab === 'json') {
         document.getElementById('sf-json-view').value = JSON.stringify(state.sampleFormDef, null, 2);
+    }
+}
+
+function updateFormFromJson() {
+    const jsonStr = document.getElementById('sf-json-view').value;
+    try {
+        const parsed = JSON.parse(jsonStr);
+        if (Array.isArray(parsed)) {
+            state.sampleFormDef = parsed;
+            renderFormEditor();
+            publishToUI5();
+            showToast('Form updated from JSON', 'success');
+        } else {
+            showToast('JSON must be an array of fields', 'error');
+        }
+    } catch (e) {
+        showToast('Invalid JSON: ' + e.message, 'error');
     }
 }
 
