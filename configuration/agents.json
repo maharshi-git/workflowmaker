@@ -28,6 +28,22 @@
                             }
                         ]
                     }
+                },
+                {
+                    "toolName": "read_po",
+                    "toolDefinition": "",
+                    "formToBeSent": {
+                        "PurchaseOrder": ""
+                    },
+                    "active": true,
+                    "title": "PO Operations",
+                    "operationType": "CRUD",
+                    "operationSubtype": "READ",
+                    "apiCalls": [],
+                    "defaultReportView": true,
+                    "knowledge": "fdgfd",
+                    "appLink": "hgfhf",
+                    "staticInstruction": "jghjgj"
                 }
             ]
         },
@@ -107,7 +123,20 @@
                 {
                     "toolName": "testtool",
                     "toolDefinition": "",
-                    "formToBeSent": {}
+                    "formToBeSent": {
+                        "PurchaseOrder": ""
+                    },
+                    "active": true,
+                    "defaultReportView": true,
+                    "operationType": "CRUD",
+                    "operationSubtype": "READ",
+                    "apiCalls": [
+                        {
+                            "label": "TEST",
+                            "serviceName": "TEST",
+                            "entitySetName": "TEST"
+                        }
+                    ]
                 }
             ]
         }

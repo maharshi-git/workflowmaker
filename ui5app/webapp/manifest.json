@@ -2,7 +2,16 @@
     "sap.app": {
         "id": "workflowmaker",
         "type": "application",
-        "title": "Workflow Maker UI5 Wrapper"
+        "title": "Workflow Maker UI5 Wrapper",
+        "dataSources": {
+            "deviceService": {
+                "uri": "/odata/v2/device/",
+                "type": "OData",
+                "settings": {
+                    "odataVersion": "2.0"
+                }
+            }
+        }
     },
     "sap.ui": {
         "technology": "UI5",
@@ -18,6 +27,15 @@
             "libs": {
                 "sap.m": {},
                 "sap.ui.core": {}
+            }
+        },
+        "models": {
+            "": {
+                "dataSource": "deviceService",
+                "preload": true
+            },
+            "appView": {
+                "type": "sap.ui.model.json.JSONModel"
             }
         },
         "rootView": {

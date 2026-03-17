@@ -33,6 +33,72 @@ sap.ui.define([
                     "/queryCode",
                     oEvent.data.queryCode || "// No code generated yet"
                 );
+            } else if (oEvent.data && oEvent.data.action === "saveTool") {
+                this.datamanager(oEvent.data.tool, oEvent.data.sampleForm, oEvent.data.queryCode);
+            }
+        },
+
+        datamanager: function(oTool, aSampleForm, sQueryCode) {
+            // "the UI5 app will call the service of onbordeedevice via a v2 oModel.create call"
+            // Using the unnamed default model from manifest.json
+            var oModel = this.getView().getModel(); 
+            
+            if (!oModel || !oModel.create) {
+                // Fallback / manual instantiation if default model is not available or not v2
+                console.warn("Default model not available or not V2, falling back to manual model creation.");
+                oModel = new sap.ui.model.odata.v2.ODataModel("/odata/v2/device/");
+            }
+
+            var oPayload = {
+                toolName: oTool.toolName,
+                active: !!oTool.active,
+                title: oTool.title || "",
+                knowledge: oTool.knowledge || "",
+                appLink: oTool.appLink || "",
+                staticInstruction: oTool.staticInstruction || "",
+                operationType: oTool.operationType || "",
+                operationSubtype: oTool.operationSubtype || "",
+                defaultReportView: !!oTool.defaultReportView
+            };
+            
+            oModel.create("/IntentDefinition", oPayload, {
+                success: function() {
+                    sap.m.MessageToast.show("Saved tool properties: " + oTool.toolName);
+                },
+                error: function(oErr) {
+                    console.error("Error saving tool " + oTool.toolName, oErr);
+                    sap.m.MessageToast.show("Error saving tool: " + oTool.toolName);
+                }
+            });
+
+            if (aSampleForm) {
+                var oBigFormPayload = {
+                    toolName: oTool.toolName,
+                    sampleForm: JSON.stringify(aSampleForm)
+                };
+                oModel.create("/BigForm", oBigFormPayload, {
+                    success: function() {
+                        console.log("Saved BigForm for: " + oTool.toolName);
+                    },
+                    error: function(oErr) {
+                        console.error("Error saving BigForm for " + oTool.toolName, oErr);
+                    }
+                });
+            }
+
+            if (sQueryCode) {
+                var oToolFuncPayload = {
+                    toolName: oTool.toolName,
+                    functionCode: sQueryCode
+                };
+                oModel.create("/ToolFunction", oToolFuncPayload, {
+                    success: function() {
+                        console.log("Saved ToolFunction for: " + oTool.toolName);
+                    },
+                    error: function(oErr) {
+                        console.error("Error saving ToolFunction for " + oTool.toolName, oErr);
+                    }
+                });
             }
         },
 

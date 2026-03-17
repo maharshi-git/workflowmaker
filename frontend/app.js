@@ -939,6 +939,19 @@ async function saveAll() {
             body: JSON.stringify({ agents: state.agents }),
         });
         if (!res.ok) throw new Error('Save failed');
+        
+        // Notify UI5 wrapper to trigger CAP V2 OData creations for the tool I am in
+        if (state.currentAgent !== null && state.currentTool !== null) {
+            const tool = state.agents[state.currentAgent].tools[state.currentTool];
+            const queryCode = document.getElementById('fn-code-preview').value;
+            window.parent.postMessage({
+                action: 'saveTool',
+                tool: tool,
+                sampleForm: state.sampleFormDef,
+                queryCode: queryCode
+            }, '*');
+        }
+
         showToast('Saved successfully', 'success');
     } catch (e) { showToast('Save error: ' + e.message, 'error'); }
 }
