@@ -200,6 +200,7 @@ function addAgent() {
     if (state.agents.some(a => (a.agentName || '').toLowerCase() === name.toLowerCase())) { showToast('Name already exists', 'error'); return; }
     state.agents.push({ agentName: name, agentDefinition: '', tools: [] });
     showAgentsList();
+    saveAll();
     showToast(`Agent "${name}" added`, 'success');
 }
 
@@ -207,6 +208,7 @@ function deleteAgent(idx) {
     if (!confirm(`Delete "${state.agents[idx].agentName}"?`)) return;
     state.agents.splice(idx, 1);
     showAgentsList();
+    saveAll();
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -267,6 +269,7 @@ function addTool() {
     if (!agent.tools) agent.tools = [];
     agent.tools.push({ toolName: name, toolDefinition: '', formToBeSent: {} });
     showAgentDetail(state.currentAgent);
+    saveAll();
     showToast(`Tool "${name}" added`, 'success');
 }
 
@@ -275,6 +278,7 @@ function deleteTool(agentIdx, toolIdx) {
     if (!confirm(`Delete "${agent.tools[toolIdx].toolName}"?`)) return;
     agent.tools.splice(toolIdx, 1);
     showAgentDetail(agentIdx);
+    saveAll();
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -968,9 +972,26 @@ function syncCurrentEdits() {
             const tool = agent.tools[state.currentTool];
             const tn = document.getElementById('det-tool-name');
             const td = document.getElementById('det-tool-def');
+            const tact = document.getElementById('det-tool-active');
+            const trv = document.getElementById('det-tool-default-report-view');
+            const tt = document.getElementById('det-tool-title');
+            const tkn = document.getElementById('det-tool-knowledge');
+            const tal = document.getElementById('det-tool-applink');
+            const tsi = document.getElementById('det-tool-static-instruction');
+            const tot = document.getElementById('det-tool-operation-type');
+            const tost = document.getElementById('det-tool-operation-subtype');
             const fj = document.getElementById('form-json-editor');
+
             if (tn) tool.toolName = tn.value;
             if (td) tool.toolDefinition = td.value;
+            if (tact) tool.active = tact.checked;
+            if (trv) tool.defaultReportView = trv.checked;
+            if (tt) tool.title = tt.value;
+            if (tkn) tool.knowledge = tkn.value;
+            if (tal) tool.appLink = tal.value;
+            if (tsi) tool.staticInstruction = tsi.value;
+            if (tot) tool.operationType = tot.value;
+            if (tost) tool.operationSubtype = tost.value;
             if (fj) { try { tool.formToBeSent = JSON.parse(fj.value); } catch { } }
             tool.apiCalls = state.apiCalls || [];
         }

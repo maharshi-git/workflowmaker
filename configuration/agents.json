@@ -118,25 +118,21 @@
         },
         {
             "agentName": "testagent",
-            "agentDefinition": "test agent",
+            "agentDefinition": "sdfsdfsdf",
             "tools": [
                 {
-                    "toolName": "testtool",
-                    "toolDefinition": "",
-                    "formToBeSent": {
-                        "PurchaseOrder": ""
-                    },
+                    "toolName": "testagenttool",
+                    "toolDefinition": "testtool",
+                    "formToBeSent": {},
                     "active": true,
                     "defaultReportView": true,
+                    "title": "sdfsdf",
+                    "knowledge": "sdgdfgd",
+                    "appLink": "fghfgh",
+                    "staticInstruction": "fghfgh",
                     "operationType": "CRUD",
                     "operationSubtype": "READ",
-                    "apiCalls": [
-                        {
-                            "label": "TEST",
-                            "serviceName": "TEST",
-                            "entitySetName": "TEST"
-                        }
-                    ]
+                    "apiCalls": []
                 }
             ]
         }
