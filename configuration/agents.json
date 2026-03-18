@@ -123,7 +123,9 @@
                 {
                     "toolName": "testagenttool",
                     "toolDefinition": "testtool",
-                    "formToBeSent": {},
+                    "formToBeSent": {
+                        "newProperty": ""
+                    },
                     "active": true,
                     "defaultReportView": true,
                     "title": "sdfsdf",
@@ -132,7 +134,13 @@
                     "staticInstruction": "fghfgh",
                     "operationType": "CRUD",
                     "operationSubtype": "READ",
-                    "apiCalls": []
+                    "apiCalls": [
+                        {
+                            "label": "dfdgd",
+                            "serviceName": "fgdfg",
+                            "entitySetName": "dfgdfgdg"
+                        }
+                    ]
                 }
             ]
         }

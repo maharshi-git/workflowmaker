@@ -78,3 +78,22 @@ async def delete_agent(agent_name: str):
         raise HTTPException(status_code=404, detail=f"Agent '{agent_name}' not found")
     _save_agents(updated)
     return {"status": "deleted", "count": len(updated)}
+
+
+ORCHESTRATOR_FILE = os.path.join(CONFIG_DIR, "orchestrator.json")
+
+@router.get("/api/orchestrator")
+async def get_orchestrator():
+    """Return the orchestrator definition."""
+    if not os.path.exists(ORCHESTRATOR_FILE):
+        return {"OrchestratorDescription": ""}
+    with open(ORCHESTRATOR_FILE, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+@router.put("/api/orchestrator")
+async def update_orchestrator(payload: dict[str, Any]):
+    """Update the orchestrator definition."""
+    os.makedirs(CONFIG_DIR, exist_ok=True)
+    with open(ORCHESTRATOR_FILE, "w", encoding="utf-8") as f:
+        json.dump(payload, f, indent=4, ensure_ascii=False)
+    return {"status": "ok"}

@@ -864,7 +864,8 @@ select.form-input {
     content: '';
     position: absolute;
     left: -32px;
-    top: -12px; /* Connect from the parent */
+    top: -12px;
+    /* Connect from the parent */
     width: 3px;
     height: 12px;
     background: #6366f1;

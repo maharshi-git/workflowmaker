@@ -55,9 +55,21 @@
             <div class="view-toolbar">
                 <h2>Agents</h2>
                 <div style="display: flex; gap: 8px;">
-                    <input type="text" id="search-agents" class="form-input" placeholder="Search agents..." oninput="showAgentsList()" style="width: 250px;">
+                    <input type="text" id="search-agents" class="form-input" placeholder="Search agents..."
+                        oninput="showAgentsList()" style="width: 250px;">
                     <button class="btn btn-primary" onclick="addAgent()">+ Add Agent</button>
                 </div>
+            </div>
+
+            <!-- Orchestrator Definition -->
+            <div class="card" style="margin-bottom: 24px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                    <h3 style="margin:0;">Orchestrator Definition</h3>
+                    <button class="btn btn-outline btn-sm" onclick="saveOrchestrator()">Save Orchestrator</button>
+                </div>
+                <textarea class="form-textarea" id="orchestrator-def-input" rows="3"
+                    placeholder="Define how the orchestrator should route requests..."
+                    style="font-size: 13px;"></textarea>
             </div>
             <div class="agents-tabs">
                 <button class="agents-tab active" data-vt="table" onclick="switchAgentsView('table')">Table</button>
@@ -102,7 +114,8 @@
             <div class="view-toolbar" style="margin-top:24px;">
                 <h3>Tools</h3>
                 <div style="display: flex; gap: 8px;">
-                    <input type="text" id="search-tools" class="form-input" placeholder="Search tools..." oninput="renderToolsList()" style="width: 250px;">
+                    <input type="text" id="search-tools" class="form-input" placeholder="Search tools..."
+                        oninput="renderToolsList()" style="width: 250px;">
                     <button class="btn btn-primary btn-sm" onclick="addTool()">+ Add Tool</button>
                 </div>
             </div>
@@ -139,10 +152,12 @@
                     </div>
                     <div class="form-group" style="display: flex; gap: 16px;">
                         <label style="display: flex; align-items: center; gap: 6px;">
-                            <input type="checkbox" id="det-tool-active" style="width:16px; height:16px; accent-color: var(--primary);"> Active
+                            <input type="checkbox" id="det-tool-active"
+                                style="width:16px; height:16px; accent-color: var(--primary);"> Active
                         </label>
                         <label style="display: flex; align-items: center; gap: 6px;">
-                            <input type="checkbox" id="det-tool-default-report-view" style="width:16px; height:16px; accent-color: var(--primary);"> Default Report View
+                            <input type="checkbox" id="det-tool-default-report-view"
+                                style="width:16px; height:16px; accent-color: var(--primary);"> Default Report View
                         </label>
                     </div>
                     <div class="form-group">
@@ -164,7 +179,8 @@
                     <div style="display: flex; gap: 16px;">
                         <div class="form-group" style="flex: 1;">
                             <label>Operation Type</label>
-                            <select class="form-input" id="det-tool-operation-type" onchange="handleOperationTypeChange()">
+                            <select class="form-input" id="det-tool-operation-type"
+                                onchange="handleOperationTypeChange()">
                                 <option value="">Select Type</option>
                                 <option value="CRUD">CRUD</option>
                                 <option value="RAG">RAG</option>
@@ -271,13 +287,16 @@
                     </div>
 
                     <div class="sf-tabs">
-                        <button class="sf-tab active" id="btn-func-visual" onclick="switchFuncTab('visual')">Visual Mode</button>
-                        <button class="sf-tab" id="btn-func-developer" onclick="switchFuncTab('developer')">Developer Mode</button>
+                        <button class="sf-tab active" id="btn-func-visual" onclick="switchFuncTab('visual')">Visual
+                            Mode</button>
+                        <button class="sf-tab" id="btn-func-developer" onclick="switchFuncTab('developer')">Developer
+                            Mode</button>
                     </div>
 
                     <!-- Visual Mode Panel -->
                     <div id="func-panel-visual" class="sf-panel">
-                        <div id="func-visual-content" style="padding: 12px; background: var(--bg-elevated); border-radius: var(--radius-sm); border: 1px solid var(--border); min-height: 100px;">
+                        <div id="func-visual-content"
+                            style="padding: 12px; background: var(--bg-elevated); border-radius: var(--radius-sm); border: 1px solid var(--border); min-height: 100px;">
                             <div style="color:var(--text-dim); font-style: italic;">No logic defined yet.</div>
                         </div>
                     </div>
@@ -286,22 +305,48 @@
                     <div id="func-panel-developer" class="sf-panel" style="display:none;">
                         <div class="dev-mode-layout" style="display: flex; flex-direction: column; gap: 16px;">
                             <div class="code-section">
-                                <label style="font-size: 13px; font-weight: 600; margin-bottom: 8px; display: block;">Generated Function Code</label>
-                                <textarea class="form-textarea code-editor" id="fn-code-preview" rows="12" spellcheck="false" readonly></textarea>
+                                <label
+                                    style="font-size: 13px; font-weight: 600; margin-bottom: 8px; display: block;">Generated
+                                    Function Code</label>
+                                <textarea class="form-textarea code-editor" id="fn-code-preview" rows="12"
+                                    spellcheck="false"></textarea>
                             </div>
 
-                            <div class="payload-builder" style="padding: 16px; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-sm);">
-                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                                    <label style="font-size: 13px; font-weight: 600;">Dummy Input Payload</label>
-                                    <button class="btn btn-outline btn-sm" onclick="syncPayloadFromForm()">Sync from Sample Form</button>
+                            <div class="payload-builder"
+                                style="padding: 16px; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-sm);">
+                                <div
+                                    style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                                    <label style="font-size: 13px; font-weight: 600;">Input Payload (Mocked
+                                        Execution)</label>
+                                    <button class="btn btn-outline btn-sm" onclick="syncPayloadFromForm()">Reset from
+                                        Form</button>
                                 </div>
-                                <div id="payload-fields-container" style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px;">
-                                    <!-- Fields will be dynamically generated here -->
+
+                                <div class="sf-tabs" style="margin-bottom: 12px;">
+                                    <button class="sf-tab active" id="btn-payload-visual"
+                                        onclick="switchPayloadTab('visual')">Visual Form</button>
+                                    <button class="sf-tab" id="btn-payload-json" onclick="switchPayloadTab('json')">JSON
+                                        Editor</button>
                                 </div>
-                                <label style="font-size: 12px; font-weight: 500; color: var(--text-muted); margin-bottom: 4px; display: block;">Raw Payload (JSON)</label>
-                                <textarea class="form-textarea code-editor" id="fn-payload-json" rows="6" spellcheck="false" onchange="updatePayloadFromJSON()"></textarea>
-                                
-                                <div style="margin-top: 16px; border-top: 1px solid var(--border); padding-top: 16px; display: flex; justify-content: flex-end;">
+
+                                <div id="payload-panel-visual">
+                                    <div id="payload-form-content"
+                                        style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px;">
+                                        <!-- Visual inputs dynamically generated here -->
+                                    </div>
+                                </div>
+
+                                <div id="payload-panel-json" style="display:none;">
+                                    <label
+                                        style="font-size: 11px; font-weight: 500; color: var(--text-muted); margin-bottom: 8px; display: block;">Raw
+                                        Input Payload JSON:</label>
+                                    <textarea class="form-textarea code-editor" id="fn-payload-json" rows="10"
+                                        spellcheck="false" style="min-height: 120px; transition: height 0.1s ease;"
+                                        oninput="autoGrow(this)"></textarea>
+                                </div>
+
+                                <div
+                                    style="margin-top: 16px; border-top: 1px solid var(--border); padding-top: 16px; display: flex; justify-content: flex-end;">
                                     <button class="btn btn-success" onclick="testRemote()">Test Remote</button>
                                 </div>
                             </div>

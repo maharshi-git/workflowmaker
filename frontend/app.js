@@ -29,10 +29,21 @@ function toggleNativeTheme() {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
+    // Default to light theme
+    applyTheme(true);
+
     try {
         state.agents = await fetch('/api/agents').then(r => r.json());
         showAgentsList();
     } catch (e) { showToast('Failed to load agents', 'error'); }
+
+    try {
+        const orch = await fetch('/api/orchestrator').then(r => r.json());
+        if (orch && orch.OrchestratorDescription) {
+            document.getElementById('orchestrator-def-input').value = orch.OrchestratorDescription;
+            autoGrow(document.getElementById('orchestrator-def-input'));
+        }
+    } catch (e) { console.error('Failed to load orchestrator', e); }
 
     // Auto-expand textareas
     document.addEventListener('input', e => {
@@ -50,11 +61,22 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
-    // 2. Fallback to native OS preference if UI5 doesn't send anything
-    const darkModePrefs = window.matchMedia('(prefers-color-scheme: dark)');
-    applyTheme(!darkModePrefs.matches);
-    darkModePrefs.addEventListener('change', e => applyTheme(!e.matches));
+    // 2. Match OS preference ONLY if not explicitly overridden by UI5 above
+    // (though applyTheme(true) above already sets it to light by default)
 });
+
+async function saveOrchestrator() {
+    const desc = document.getElementById('orchestrator-def-input').value;
+    try {
+        const res = await fetch('/api/orchestrator', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ OrchestratorDescription: desc }),
+        });
+        if (!res.ok) throw new Error('Save orchestrator failed');
+        showToast('Orchestrator saved', 'success');
+    } catch (e) { showToast('Error: ' + e.message, 'error'); }
+}
 
 // ═══════════════════════════════════════════════════════════
 //  Navigation helpers
@@ -89,8 +111,8 @@ function showAgentsList() {
     const searchInput = document.getElementById('search-agents');
     const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
 
-    const sortedAgents = state.agents.map((a, i) => ({ ...a, _oIdx: i })).filter(a => 
-        (a.agentName || '').toLowerCase().includes(searchTerm) || 
+    const sortedAgents = state.agents.map((a, i) => ({ ...a, _oIdx: i })).filter(a =>
+        (a.agentName || '').toLowerCase().includes(searchTerm) ||
         (a.agentDefinition || '').toLowerCase().includes(searchTerm)
     );
 
@@ -236,13 +258,13 @@ function showAgentDetail(idx) {
 function renderToolsList() {
     const agent = state.agents[state.currentAgent];
     if (!agent) return;
-    
+
     const searchInput = document.getElementById('search-tools');
     const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
     const tools = agent.tools || [];
-    
-    const filteredTools = tools.map((t, i) => ({ ...t, _oIdx: i })).filter(t => 
-        (t.toolName || '').toLowerCase().includes(searchTerm) || 
+
+    const filteredTools = tools.map((t, i) => ({ ...t, _oIdx: i })).filter(t =>
+        (t.toolName || '').toLowerCase().includes(searchTerm) ||
         (t.toolDefinition || '').toLowerCase().includes(searchTerm)
     );
 
@@ -365,14 +387,14 @@ function handleOperationTypeChange() {
     const tool = state.agents[state.currentAgent].tools[state.currentTool];
     const newType = document.getElementById('det-tool-operation-type').value;
     tool.operationType = newType;
-    tool.operationSubtype = ''; 
+    tool.operationSubtype = '';
     updateOperationSubtypeOptions(newType);
 }
 
 function updateOperationSubtypeOptions(type) {
     const subtypeSelect = document.getElementById('det-tool-operation-subtype');
     subtypeSelect.innerHTML = '';
-    
+
     if (type === 'CRUD') {
         const options = ['CREATE', 'READ', 'UPDATE', 'DELETE'];
         subtypeSelect.innerHTML = '<option value="">Select Subtype</option>' + options.map(opt => `<option value="${opt}">${opt}</option>`).join('');
@@ -864,7 +886,7 @@ function generateFunctionCode() {
     }
 
     const lines = [
-        'async function execute(inputPayload) {',
+        'async (cds, inputPayload) => {',
         '    const results = [];',
         '',
     ];
@@ -941,8 +963,69 @@ function switchFuncTab(mode) {
     if (mode === 'developer') {
         const payloadArea = document.getElementById('fn-payload-json');
         if (!payloadArea.value) syncPayloadFromForm();
-        renderPayloadBuilder();
+        renderPayloadForm();
+        autoGrow(payloadArea);
     }
+}
+
+function switchPayloadTab(mode) {
+    document.getElementById('btn-payload-visual').classList.toggle('active', mode === 'visual');
+    document.getElementById('btn-payload-json').classList.toggle('active', mode === 'json');
+    document.getElementById('payload-panel-visual').style.display = mode === 'visual' ? '' : 'none';
+    document.getElementById('payload-panel-json').style.display = mode === 'json' ? '' : 'none';
+    if (mode === 'visual') renderPayloadForm();
+}
+
+function renderPayloadForm() {
+    const container = document.getElementById('payload-form-content');
+    if (!container) return;
+    const jsonStr = document.getElementById('fn-payload-json').value;
+    let currentData = {};
+    try { currentData = JSON.parse(jsonStr || '{}'); } catch (e) { }
+
+    if (!state.sampleFormDef || state.sampleFormDef.length === 0) {
+        container.innerHTML = '<div style="color:var(--text-dim); font-style: italic; font-size:12px;">No fields defined in Sample Form. Go to Sample Form section to add fields.</div>';
+        return;
+    }
+
+    container.innerHTML = state.sampleFormDef.map(field => {
+        const val = currentData[field.label];
+        const label = field.fieldLabel || field.label;
+
+        if (field.type === 'table') {
+            return `
+                <div class="payload-field-group" style="border: 1px solid var(--border); padding: 10px; border-radius: var(--radius-sm); background: var(--bg-surface);">
+                    <label style="font-size:12px; font-weight:700; display:block; margin-bottom:6px; color: var(--primary-light);">${label} (Table/Array)</label>
+                    <div style="color:var(--text-dim); font-size:11px; font-style: italic;">Nested data structures should be managed via the JSON Editor tab for full control.</div>
+                </div>
+            `;
+        }
+
+        let inputHtml = '';
+        if (field.type === 'Checkbox') {
+            inputHtml = `<input type="checkbox" ${val ? 'checked' : ''} onchange="updatePayloadValue('${field.label}', this.checked)">`;
+        } else if (field.type === 'Date') {
+            inputHtml = `<input type="date" class="form-input" style="height:32px; font-size:13px;" value="${val || ''}" oninput="updatePayloadValue('${field.label}', this.value)">`;
+        } else {
+            inputHtml = `<input class="form-input" placeholder="Enter ${label}..." style="height:32px; font-size:13px;" value="${val || ''}" oninput="updatePayloadValue('${field.label}', this.value)">`;
+        }
+
+        return `
+            <div class="payload-field-group" style="display:flex; align-items:center; gap:12px;">
+                <label style="font-size:12px; font-weight:500; min-width:140px; color: var(--text-muted);">${label}:</label>
+                <div style="flex:1;">${inputHtml}</div>
+            </div>
+        `;
+    }).join('');
+}
+
+function updatePayloadValue(key, val) {
+    const area = document.getElementById('fn-payload-json');
+    try {
+        const data = JSON.parse(area.value || '{}');
+        data[key] = val;
+        area.value = JSON.stringify(data, null, 2);
+    } catch (e) { }
 }
 
 function renderVisualMode() {
@@ -961,7 +1044,7 @@ function renderVisualMode() {
         const svc = ac.serviceName || 'UnknownService';
         const ent = ac.entitySetName || 'UnknownEntity';
         const label = ac.label || `Step ${i + 1}`;
-        
+
         let desc = '';
         if (op === 'Read') {
             const q = ac.queryFields ? ` filtering by <strong>${ac.queryFields}</strong>` : '';
@@ -1005,63 +1088,15 @@ function syncPayloadFromForm() {
     const area = document.getElementById('fn-payload-json');
     area.value = JSON.stringify(payload, null, 2);
     autoGrow(area);
-    renderPayloadBuilder();
-}
-
-function renderPayloadBuilder() {
-    const container = document.getElementById('payload-fields-container');
-    const jsonStr = document.getElementById('fn-payload-json').value;
-    let payload = {};
-    try {
-        payload = JSON.parse(jsonStr || '{}');
-    } catch { }
-
-    const keys = Object.keys(payload);
-    if (keys.length === 0) {
-        container.innerHTML = '<div style="color:var(--text-dim); font-size: 11px;">No fields to show. Click sync to load from form.</div>';
-        return;
-    }
-
-    container.innerHTML = keys.map(k => {
-        const val = payload[k];
-        if (typeof val === 'object' && val !== null) {
-             return `<div class="p-field" style="display:flex; align-items:center; gap:8px;">
-                <span style="font-size:12px; font-weight:500; min-width:100px; color: var(--primary-light);">${k}</span>
-                <span style="color: var(--text-dim); font-size: 12px;">(Complex Object - use raw JSON below)</span>
-             </div>`;
-        }
-        const isBool = typeof val === 'boolean';
-        return `
-            <div class="p-field" style="display:flex; align-items:center; gap:8px;">
-                <span style="font-size:12px; font-weight:500; min-width:100px;">${k}</span>
-                ${isBool 
-                    ? `<input type="checkbox" ${val ? 'checked' : ''} onchange="updatePayloadField('${k}', this.checked)">`
-                    : `<input class="fe-input" style="flex:1" value="${val}" oninput="updatePayloadField('${k}', this.value)">`
-                }
-            </div>
-        `;
-    }).join('');
-}
-
-function updatePayloadField(key, val) {
-    const jsonArea = document.getElementById('fn-payload-json');
-    try {
-        const payload = JSON.parse(jsonArea.value || '{}');
-        payload[key] = val;
-        jsonArea.value = JSON.stringify(payload, null, 2);
-    } catch { }
-}
-
-function updatePayloadFromJSON() {
-    renderPayloadBuilder();
+    renderPayloadForm();
 }
 
 function testRemote() {
     const functionCode = document.getElementById('fn-code-preview').value;
     const payloadStr = document.getElementById('fn-payload-json').value;
     let payload = {};
-    try { 
-        payload = JSON.parse(payloadStr); 
+    try {
+        payload = JSON.parse(payloadStr);
     } catch {
         showToast('Invalid Payload JSON', 'error');
         return;
@@ -1087,7 +1122,7 @@ async function saveAll() {
             body: JSON.stringify({ agents: state.agents }),
         });
         if (!res.ok) throw new Error('Save failed');
-        
+
         // Notify UI5 wrapper to trigger CAP V2 OData creations for the tool I am in
         if (state.currentAgent !== null && state.currentTool !== null) {
             const tool = state.agents[state.currentAgent].tools[state.currentTool];
@@ -1199,7 +1234,8 @@ function truncate(s, n) { return s.length > n ? s.slice(0, n) + '...' : s; }
 
 function autoGrow(el) {
     el.style.height = 'auto';
-    el.style.height = Math.min(el.scrollHeight, 400) + 'px';
+    const maxHeight = window.innerHeight * 0.6; // Expanding to about 60% of the page
+    el.style.height = Math.min(el.scrollHeight, maxHeight) + 'px';
 }
 
 function showToast(msg, type) {
