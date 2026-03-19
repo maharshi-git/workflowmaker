@@ -379,3 +379,19 @@
 </body>
 
 </html>
+</div>
+<div id="chat-messages"></div>
+<div class="chat-input-area">
+    <input type="text" id="chat-input" placeholder="Type a message..." onkeydown="if(event.key==='Enter')sendChat()">
+    <button class="btn btn-primary btn-sm" onclick="sendChat()">Send</button>
+</div>
+</div>
+
+<!-- Toast -->
+<div id="toast" class="toast hidden"></div>
+
+<script src="parser.js?v=2"></script>
+<script src="app.js?v=4"></script>
+</body>
+
+</html>

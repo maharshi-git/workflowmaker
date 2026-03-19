@@ -58,6 +58,54 @@ document.addEventListener('DOMContentLoaded', async () => {
     window.addEventListener('message', e => {
         if (e.data && e.data.action === 'setTheme') {
             applyTheme(e.data.theme === 'light');
+        } else if (e.data && e.data.action === 'toolDataReceived' && state.currentAgent !== null && state.currentTool !== null) {
+            const tool = state.agents[state.currentAgent].tools[state.currentTool];
+            if (!tool) return;
+            const capData = e.data.data;
+
+            if (capData && capData.intent) {
+                const i = capData.intent;
+                tool.active = i.active;
+                tool.title = i.title;
+                tool.knowledge = i.knowledge;
+                tool.appLink = i.appLink;
+                tool.staticInstruction = i.staticInstruction;
+                tool.operationType = i.operationType;
+                tool.operationSubtype = i.operationSubtype;
+                tool.defaultReportView = i.defaultReportView;
+
+                // Update UI properties
+                document.getElementById('det-tool-active').checked = !!tool.active;
+                document.getElementById('det-tool-default-report-view').checked = !!tool.defaultReportView;
+                document.getElementById('det-tool-title').value = tool.title || '';
+                document.getElementById('det-tool-knowledge').value = tool.knowledge || '';
+                document.getElementById('det-tool-applink').value = tool.appLink || '';
+                document.getElementById('det-tool-static-instruction').value = tool.staticInstruction || '';
+                document.getElementById('det-tool-operation-type').value = tool.operationType || '';
+                updateOperationSubtypeOptions(tool.operationType || '');
+                document.getElementById('det-tool-operation-subtype').value = tool.operationSubtype || '';
+
+                showToast(`Loaded details from CAP for ${tool.toolName}`, 'success');
+            } else {
+                showToast(`Tool ${tool.toolName} not configured in CAP application.`, 'warning');
+                document.getElementById('fn-code-preview').value = '// No code in CAP yet. Save to initialize.';
+            }
+
+            if (capData && capData.bigForm) {
+                try {
+                    state.sampleFormDef = JSON.parse(capData.bigForm.sampleForm) || [];
+                    renderFormEditor();
+                    renderPayloadForm();
+                } catch (e) { console.error("Error parsing CAP bigForm", e); }
+            } else {
+                state.sampleFormDef = [];
+                renderFormEditor();
+                renderPayloadForm();
+            }
+
+            if (capData && capData.function) {
+                document.getElementById('fn-code-preview').value = capData.function.functionCode;
+            }
         }
     });
 
@@ -336,16 +384,31 @@ function showToolDetail(agentIdx, toolIdx) {
 
     document.getElementById('det-tool-name').value = tool.toolName || '';
     document.getElementById('det-tool-def').value = tool.toolDefinition || '';
-    document.getElementById('det-tool-active').checked = !!tool.active;
-    document.getElementById('det-tool-default-report-view').checked = !!tool.defaultReportView;
-    document.getElementById('det-tool-title').value = tool.title || '';
-    document.getElementById('det-tool-knowledge').value = tool.knowledge || '';
-    document.getElementById('det-tool-applink').value = tool.appLink || '';
-    document.getElementById('det-tool-static-instruction').value = tool.staticInstruction || '';
-    document.getElementById('det-tool-operation-type').value = tool.operationType || '';
-    updateOperationSubtypeOptions(tool.operationType || '');
-    document.getElementById('det-tool-operation-subtype').value = tool.operationSubtype || '';
+
+    // ═══ Part 1: Source of Truth = agents.json (Frontend state) ═══
     document.getElementById('form-json-editor').value = JSON.stringify(tool.formToBeSent || {}, null, 2);
+
+    // ═══ Part 2: Source of Truth = CAP Application (Cleared now, loaded via message) ═══
+    document.getElementById('det-tool-active').checked = false;
+    document.getElementById('det-tool-default-report-view').checked = false;
+    document.getElementById('det-tool-title').value = '';
+    document.getElementById('det-tool-knowledge').value = '';
+    document.getElementById('det-tool-applink').value = '';
+    document.getElementById('det-tool-static-instruction').value = '';
+    document.getElementById('det-tool-operation-type').value = '';
+    document.getElementById('det-tool-operation-subtype').value = '';
+
+    state.sampleFormDef = [];
+    renderFormEditor();
+    renderPayloadForm();
+
+    document.getElementById('fn-code-preview').value = '// Loading from CAP app...';
+
+    // [New Flow] Emit event to parent (UI5) to fetch latest details from CAP App
+    window.parent.postMessage({
+        action: 'readTool',
+        toolName: tool.toolName
+    }, '*');
 
     document.getElementById('det-tool-name').onchange = function () { tool.toolName = this.value; publishToUI5(); };
     document.getElementById('det-tool-def').onchange = function () { tool.toolDefinition = this.value; publishToUI5(); };
@@ -364,17 +427,9 @@ function showToolDetail(agentIdx, toolIdx) {
         catch { showToast('Invalid JSON', 'error'); }
     }
 
-    // Init form editor from current formToBeSent
-    try {
-        const json = tool.formToBeSent || {};
-        state.sampleFormDef = (Object.keys(json).length > 0) ? jsonToFormDef(json) : [];
-    } catch { state.sampleFormDef = []; }
-    renderFormEditor();
-
-    // Init API calls
+    // API calls stay local to agents.json
     state.apiCalls = (tool.apiCalls || []).map(a => ({ ...a }));
     renderApiCalls();
-    generateFunctionCode();
 
     // Initial publish down to UI5
     publishToUI5();
