@@ -35,10 +35,56 @@ sap.ui.define([
                 );
             } else if (oEvent.data && oEvent.data.action === "saveTool") {
                 this.datamanager(oEvent.data.tool, oEvent.data.sampleForm, oEvent.data.queryCode);
+            } else if (oEvent.data && oEvent.data.action === "readTool") {
+                this._onReadTool(oEvent.data.toolName, oEvent.source);
             } else if (oEvent.data && oEvent.data.action === "testRemote") {
                 console.log("Remote Test Triggered:", oEvent.data.functionCode, oEvent.data.inputPayload);
                 sap.m.MessageToast.show("Remote test triggered for: " + (oEvent.data.inputPayload ? JSON.stringify(oEvent.data.inputPayload) : "No Payload"));
             }
+        },
+
+        _onReadTool: function (sToolName, oSourceWindow) {
+            var oModel = this.getView().getModel();
+            
+            // Fallback if default model is not available or not V2
+            if (!oModel || !oModel.read) {
+                oModel = new sap.ui.model.odata.v2.ODataModel("/odata/v2/device/");
+            }
+
+            var oResultData = {
+                intent: null,
+                bigForm: null,
+                function: null
+            };
+
+            var p1 = new Promise(function (resolve) {
+                oModel.read("/IntentDefinition('" + sToolName + "')", {
+                    success: function (oData) { oResultData.intent = oData; resolve(); },
+                    error: function () { resolve(); }
+                });
+            });
+
+            var p2 = new Promise(function (resolve) {
+                oModel.read("/BigForm('" + sToolName + "')", {
+                    success: function (oData) { oResultData.bigForm = oData; resolve(); },
+                    error: function () { resolve(); }
+                });
+            });
+
+            var p3 = new Promise(function (resolve) {
+                oModel.read("/ToolFunction('" + sToolName + "')", {
+                    success: function (oData) { oResultData.function = oData; resolve(); },
+                    error: function () { resolve(); }
+                });
+            });
+
+            Promise.all([p1, p2, p3]).then(function () {
+                oSourceWindow.postMessage({
+                    action: "toolDataReceived",
+                    toolName: sToolName,
+                    data: oResultData
+                }, "*");
+            });
         },
 
         datamanager: function(oTool, aSampleForm, sQueryCode) {
