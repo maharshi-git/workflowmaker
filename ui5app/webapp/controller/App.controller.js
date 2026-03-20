@@ -43,9 +43,10 @@ sap.ui.define([
             }
         },
 
+
         _onReadTool: function (sToolName, oSourceWindow) {
             var oModel = this.getView().getModel();
-            
+
             // Fallback if default model is not available or not V2
             if (!oModel || !oModel.read) {
                 oModel = new sap.ui.model.odata.v2.ODataModel("/odata/v2/device/");
@@ -87,11 +88,11 @@ sap.ui.define([
             });
         },
 
-        datamanager: function(oTool, aSampleForm, sQueryCode) {
+        datamanager: function (oTool, aSampleForm, sQueryCode) {
             // "the UI5 app will call the service of onbordeedevice via a v2 oModel.create call"
             // Using the unnamed default model from manifest.json
-            var oModel = this.getView().getModel(); 
-            
+            var oModel = this.getView().getModel();
+
             if (!oModel || !oModel.create) {
                 // Fallback / manual instantiation if default model is not available or not v2
                 console.warn("Default model not available or not V2, falling back to manual model creation.");
@@ -109,12 +110,12 @@ sap.ui.define([
                 operationSubtype: oTool.operationSubtype || "",
                 defaultReportView: !!oTool.defaultReportView
             };
-            
+
             oModel.create("/IntentDefinition", oPayload, {
-                success: function() {
+                success: function () {
                     sap.m.MessageToast.show("Saved tool properties: " + oTool.toolName);
                 },
-                error: function(oErr) {
+                error: function (oErr) {
                     console.error("Error saving tool " + oTool.toolName, oErr);
                     sap.m.MessageToast.show("Error saving tool: " + oTool.toolName);
                 }
@@ -126,10 +127,10 @@ sap.ui.define([
                     sampleForm: JSON.stringify(aSampleForm)
                 };
                 oModel.create("/BigForm", oBigFormPayload, {
-                    success: function() {
+                    success: function () {
                         console.log("Saved BigForm for: " + oTool.toolName);
                     },
-                    error: function(oErr) {
+                    error: function (oErr) {
                         console.error("Error saving BigForm for " + oTool.toolName, oErr);
                     }
                 });
@@ -141,10 +142,10 @@ sap.ui.define([
                     functionCode: sQueryCode
                 };
                 oModel.create("/ToolFunction", oToolFuncPayload, {
-                    success: function() {
+                    success: function () {
                         console.log("Saved ToolFunction for: " + oTool.toolName);
                     },
-                    error: function(oErr) {
+                    error: function (oErr) {
                         console.error("Error saving ToolFunction for " + oTool.toolName, oErr);
                     }
                 });

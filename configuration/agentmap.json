@@ -1,0 +1,33 @@
+{
+    "name": "OrchestratorAgent",
+    "type": "agent",
+    "to": [
+        {
+            "name": "P2PAgent",
+            "type": "agent",
+            "to": [
+                {
+                    "name": "Successfactors",
+                    "type": "tool",
+                    "to": [
+                        {
+                            "name": "Successfactors",
+                            "type": "agent"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "OTCAgent",
+            "type": "agent",
+            "to": [
+                {
+                    "name": "OTCAgent",
+                    "type": "tool",
+                    "to": []
+                }
+            ]
+        }
+    ]
+}
