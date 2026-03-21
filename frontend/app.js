@@ -174,6 +174,108 @@ function runIsolatedApiTest() {
     }, '*');
 }
 
+// ── Isolated Custom Function Test Modal ───────────────────
+function openTestFuncModal(nodeId) {
+    const node = state.graphNodes.find(n => n.id === nodeId);
+    if (!node) return;
+    
+    _currentTestNodeId = nodeId;
+    const modal = document.getElementById('test-func-modal');
+    modal.classList.remove('hidden');
+    
+    // Auto-populate code
+    document.getElementById('test-func-code').value = node.functionBody || '';
+    
+    // Manage dynamic inputs
+    const container = document.getElementById('test-func-inputs-container');
+    container.innerHTML = '';
+    
+    const incomingEdges = state.graphEdges.filter(e => e.to === nodeId);
+    const inCount = Math.max(1, incomingEdges.length);
+    
+    for (let i = 0; i < inCount; i++) {
+        const div = document.createElement('div');
+        div.className = 'form-group';
+        
+        let defaultValue = '{\n}';
+        // Try to find if this input has a connected payload
+        if (incomingEdges[i]) {
+            const fromNode = state.graphNodes.find(n => n.id === incomingEdges[i].from);
+            if (fromNode && fromNode.type === 'insertPayload') {
+                defaultValue = fromNode.payload || '{\n}';
+            }
+        }
+        
+        div.innerHTML = `
+            <label style="font-size:10px; font-weight:600; color:var(--text-dim); margin-bottom:4px; display:block;">input${i+1} (JSON)</label>
+            <textarea class="form-textarea code-editor test-func-input-val" data-idx="${i}" rows="4" spellcheck="false">${escHtml(defaultValue)}</textarea>
+        `;
+        container.innerHTML += div.outerHTML;
+    }
+
+    // Reset result
+    document.getElementById('test-func-result-container').style.display = 'none';
+    document.getElementById('test-func-result').value = '';
+}
+
+function closeTestFuncModal() {
+    document.getElementById('test-func-modal').classList.add('hidden');
+    _currentTestNodeId = null;
+}
+
+async function runIsolatedFuncTest() {
+    const code = document.getElementById('test-func-code').value;
+    const resultArea = document.getElementById('test-func-result');
+    const container = document.getElementById('test-func-result-container');
+    
+    // Gather inputs
+    const paramInputs = document.querySelectorAll('.test-func-input-val');
+    const args = [];
+    try {
+        paramInputs.forEach(inp => {
+            args.push(JSON.parse(inp.value || '{}'));
+        });
+    } catch (e) {
+        showToast('Invalid JSON in one of the inputs', 'error');
+        return;
+    }
+
+    try {
+        // Prepare function execution
+        // We expect something like "async function(input1) { ... }"
+        // We'll extract the body and params
+        let functionToExecute;
+        
+        if (code.includes('async function')) {
+            // Find start of body {
+            const bodyStart = code.indexOf('{');
+            const bodyEnd = code.lastIndexOf('}');
+            const body = code.substring(bodyStart + 1, bodyEnd);
+            
+            // Extract params
+            const paramsMatch = code.match(/\((.*?)\)/);
+            const params = paramsMatch ? paramsMatch[1].split(',').map(p => p.trim()) : [];
+            
+            functionToExecute = new Function(...params, `return (async () => { ${body} })();`);
+        } else {
+            // Fallback for simple return logic
+            functionToExecute = new Function('input1', `return (async () => { ${code} })();`);
+        }
+
+        container.style.display = 'block';
+        resultArea.value = 'Executing...';
+        
+        const result = await functionToExecute(...args);
+        resultArea.value = JSON.stringify(result, null, 2);
+        showToast('Function executed successfully (Local)', 'success');
+        
+    } catch (err) {
+        container.style.display = 'block';
+        resultArea.value = 'ERROR: ' + err.message;
+        showToast('Function execution failed', 'error');
+    }
+}
+
 // ── Toggle Visibility — Advanced Execution ────────────
 function toggleAdvancedCodeVisibility() {
     const isAdvanced = document.getElementById('det-tool-advanced-code').checked;
@@ -2155,7 +2257,15 @@ function renderNodeGraph() {
         } else if (node.type === 'customFunction') {
             const inCount = state.graphEdges.filter(e => e.to === node.id).length;
             bodyHtml = `
-                <label>Custom Logic (JavaScript)</label>
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <label>Custom Logic (JavaScript)</label>
+                    <button onclick="event.stopPropagation(); openTestFuncModal('${node.id}')" 
+                            title="Quick Test Logic"
+                            style="background:none; border:none; color:var(--primary-light); cursor:pointer; display:flex; align-items:center; gap:4px; padding:2px; margin-top:-4px;">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M5 3l14 9-14 9V3z"/></svg>
+                        <span style="font-size:9px; font-weight:700; text-transform:uppercase;">Test</span>
+                    </button>
+                </div>
                 <textarea onclick="event.stopPropagation()" onmousedown="event.stopPropagation()" 
                           onchange="updateGraphNode('${node.id}','functionBody',this.value)"
                           style="font-family: monospace; white-space: pre;"

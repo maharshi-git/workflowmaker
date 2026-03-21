@@ -560,6 +560,44 @@
         </div>
     </div>
 
+    <!-- Test Custom Function Modal -->
+    <div id="test-func-modal" class="modal-overlay hidden" onclick="closeTestFuncModal()">
+        <div class="modal-content card" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h3>Test Custom Function</h3>
+                <button class="modal-close" onclick="closeTestFuncModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="accordion" id="test-func-inputs-accordion" style="margin-bottom: 16px;">
+                    <div class="card-header-row" onclick="toggleCollapse(this)">
+                        <h4 style="font-size:12px; margin:0;"><span class="chevron">▾</span> Function Inputs</h4>
+                    </div>
+                    <div class="card-body" id="test-func-inputs-container" style="padding: 12px; gap: 12px; display: flex; flex-direction: column;">
+                        <!-- Inputs generated dynamically -->
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 16px;">
+                    <label style="font-size: 11px; font-weight: 600; color: var(--text-muted); margin-bottom: 4px; display: block;">Function Logic</label>
+                    <textarea id="test-func-code" class="form-textarea code-editor" rows="10" spellcheck="false"></textarea>
+                </div>
+                
+                <div style="border-top: 1px solid var(--border); padding-top: 20px; display: flex; justify-content: space-between; align-items: center;">
+                    <button class="btn btn-success" id="btn-test-func-play" onclick="runIsolatedFuncTest()" style="padding-left: 20px; padding-right: 20px;">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none" style="margin-right: 6px;"><path d="M5 3l14 9-14 9V3z"/></svg>
+                        Run Local
+                    </button>
+                    <button class="btn btn-outline" onclick="closeTestFuncModal()">Cancel</button>
+                </div>
+
+                <div id="test-func-result-container" style="display:none; margin-top:20px; border-top: 2px dashed var(--border); padding-top: 15px;">
+                    <label style="font-size: 12px; font-weight: 700; color: var(--primary-light); margin-bottom: 10px; display: block;">Execution Result:</label>
+                    <textarea id="test-func-result" class="form-textarea code-editor" rows="6" readonly style="background: var(--bg-base); font-family: monospace; border-color: var(--primary);"></textarea>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="parser.js?v=2"></script>
     <script src="app.js?v=4"></script>
 </body>
