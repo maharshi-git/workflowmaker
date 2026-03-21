@@ -106,6 +106,38 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (capData && capData.function) {
                 document.getElementById('fn-code-preview').value = capData.function.functionCode;
             }
+
+            if (capData && capData.configFlow && capData.configFlow.configJson) {
+                try {
+                    const cfg = JSON.parse(capData.configFlow.configJson);
+                    state.graphNodes = (cfg.nodes || []).map(node => {
+                        // Ensure defaults for older data
+                        if (node.type === 'apiCall') {
+                            if (!node.apiType) node.apiType = 'oData';
+                            if (!node.oDataType) node.oDataType = 'Entity';
+                            if (!node.expands) node.expands = [];
+                            // Convert legacy flat strings to recursive tree objects
+                            node.expands = node.expands.map(e => {
+                                if (typeof e === 'string') return { id: _uid(), name: e, expands: [] };
+                                return e;
+                            });
+                        }
+                        return node;
+                    });
+                    state.graphEdges = cfg.edges || [];
+                    renderNodeGraph();
+                } catch (e) { console.error("Error parsing configFlow", e); }
+            }
+        } else if (e.data && e.data.action === 'workflowExecuted') {
+            const outputDiv = document.getElementById('dnd-test-output');
+            const previewArea = document.getElementById('dnd-test-preview');
+            if (outputDiv && previewArea) {
+                outputDiv.style.display = 'block';
+                previewArea.value = e.data.response || '// No response received';
+                autoGrow(previewArea);
+                previewArea.scrollIntoView({ behavior: 'smooth', block: 'end' });
+            }
+            showToast('Workflow executed successfully', 'success');
         }
     });
 
@@ -430,6 +462,15 @@ function showToolDetail(agentIdx, toolIdx) {
     // API calls stay local to agents.json
     state.apiCalls = (tool.apiCalls || []).map(a => ({ ...a }));
     renderApiCalls();
+
+    // Restore node graph
+    state.graphNodes = (tool.graphNodes || []).map(n => ({ ...n }));
+    state.graphEdges = (tool.graphEdges || []).map(e => ({ ...e }));
+    renderNodeGraph();
+    const dndCodeOut = document.getElementById('dnd-code-output');
+    if (dndCodeOut) dndCodeOut.style.display = 'none';
+    const configOut = document.getElementById('dnd-config-output');
+    if (configOut) configOut.style.display = 'none';
 
     // Initial publish down to UI5
     publishToUI5();
@@ -1166,6 +1207,1097 @@ function testRemote() {
 }
 
 // ═══════════════════════════════════════════════════════════
+//  Function — Node Graph Workflow Builder
+// ═══════════════════════════════════════════════════════════
+
+const NODE_TYPES = {
+    insertPayload: { name: 'Insert Payload', hasInput: false, hasOutput: true },
+    createSubset: { name: 'Payload Subset', hasInput: true, hasOutput: true },
+    apiCall: { name: 'API Call', hasInput: true, hasOutput: true },
+    customFunction: { name: 'Custom Function', hasInput: true, hasOutput: true },
+    returnObject: { name: 'Return Object', hasInput: true, hasOutput: false },
+};
+
+// Graph state
+if (!state.graphNodes) state.graphNodes = [];
+if (!state.graphEdges) state.graphEdges = [];
+
+let _ngDraggingNodeId = null;
+let _ngDragOffset = { x: 0, y: 0 };
+let _ngConnecting = null; // { fromNodeId, fromPort }
+let _ngTempLine = null;
+let _ngSelectedNode = null;
+let _ngSelectedEdge = null; // { from, to }
+let _ngIsPanning = false;
+let _ngPanStart = { x: 0, y: 0, scrollLeft: 0, scrollTop: 0 };
+let _ngZoom = 1;
+let _ngIsFullscreen = false;
+
+function _uid() {
+    return 'n' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+}
+
+// ── Zoom & Fullscreen ──────────────────────────────────
+function applyZoom() {
+    const inner = document.getElementById('node-graph-inner');
+    const label = document.getElementById('ng-zoom-label');
+    if (inner) inner.style.transform = `scale(${_ngZoom})`;
+    if (label) label.textContent = Math.round(_ngZoom * 100) + '%';
+    drawEdges();
+}
+
+function ngZoom(delta) {
+    _ngZoom = Math.min(3, Math.max(0.25, _ngZoom + delta));
+    applyZoom();
+}
+
+function ngZoomFit() {
+    _ngZoom = 1;
+    applyZoom();
+    const viewport = document.getElementById('node-graph-viewport');
+    if (viewport) { viewport.scrollLeft = 0; viewport.scrollTop = 0; }
+}
+
+function toggleNodeGraphFullscreen() {
+    const workspace = document.getElementById('dnd-workspace');
+    if (!workspace) return;
+    _ngIsFullscreen = !_ngIsFullscreen;
+    workspace.classList.toggle('fullscreen', _ngIsFullscreen);
+
+    // Clear any active connection on resize
+    _ngConnecting = null;
+    document.querySelectorAll('.graph-port.connecting').forEach(p => p.classList.remove('connecting'));
+    removeTempLine();
+
+    // If entering fullscreen, make sure palette is visible
+    if (_ngIsFullscreen) {
+        const palette = document.getElementById('dnd-palette');
+        if (palette) palette.classList.remove('collapsed');
+    }
+
+    // Refresh display
+    renderNodeGraph();
+
+    // Update button icon
+    const btn = document.getElementById('ng-fullscreen-btn');
+    if (btn) {
+        btn.innerHTML = _ngIsFullscreen
+            ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 14h6v6"/><path d="M20 10h-6V4"/><path d="M14 10l7-7"/><path d="M3 21l7-7"/></svg>'
+            : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 00-2 2v3"/><path d="M21 8V5a2 2 0 00-2-2h-3"/><path d="M3 16v3a2 2 0 002 2h3"/><path d="M16 21h3a2 2 0 002-2v-3"/></svg>';
+        btn.title = _ngIsFullscreen ? 'Exit Fullscreen' : 'Toggle Fullscreen';
+    }
+}
+
+function toggleDndPalette() {
+    const palette = document.getElementById('dnd-palette');
+    if (palette) {
+        palette.classList.toggle('collapsed');
+    }
+}
+
+// Keyboard shortcuts (Escape, Delete)
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && _ngIsFullscreen) {
+        toggleNodeGraphFullscreen();
+    }
+
+    if (e.key === 'Delete' || e.key === 'Backspace') {
+        const activeTag = document.activeElement ? document.activeElement.tagName : '';
+        if (activeTag === 'INPUT' || activeTag === 'TEXTAREA') return;
+
+        if (_ngSelectedEdge) {
+            deleteEdge(_ngSelectedEdge.from, _ngSelectedEdge.to);
+            _ngSelectedEdge = null;
+        } else if (_ngSelectedNode) {
+            deleteGraphNode(_ngSelectedNode);
+            _ngSelectedNode = null;
+        }
+    }
+});
+
+// ── Palette drag → canvas drop ─────────────────────────
+function initNodeGraphListeners() {
+    const viewport = document.getElementById('node-graph-viewport');
+    if (!viewport) return;
+
+    // Palette drag start
+    document.querySelectorAll('.dnd-block-source').forEach(el => {
+        el.addEventListener('dragstart', e => {
+            e.dataTransfer.effectAllowed = 'copy';
+            e.dataTransfer.setData('text/plain', el.dataset.blockType);
+        });
+    });
+
+    // Viewport drop
+    viewport.addEventListener('dragover', e => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'copy';
+    });
+
+    viewport.addEventListener('drop', e => {
+        e.preventDefault();
+        const type = e.dataTransfer.getData('text/plain');
+        if (!NODE_TYPES[type]) return;
+
+        const rect = viewport.getBoundingClientRect();
+        // Account for zoom when calculating canvas coordinates
+        const x = (e.clientX - rect.left + viewport.scrollLeft) / _ngZoom - 110;
+        const y = (e.clientY - rect.top + viewport.scrollTop) / _ngZoom - 30;
+
+        addGraphNode(type, Math.max(20, x), Math.max(20, y));
+    });
+
+    // Scroll-to-zoom (mouse wheel)
+    viewport.addEventListener('wheel', e => {
+        e.preventDefault();
+        const delta = e.deltaY < 0 ? 0.08 : -0.08;
+        const oldZoom = _ngZoom;
+        _ngZoom = Math.min(3, Math.max(0.25, _ngZoom + delta));
+
+        // Zoom toward cursor position
+        const rect = viewport.getBoundingClientRect();
+        const mx = e.clientX - rect.left;
+        const my = e.clientY - rect.top;
+        const ratio = _ngZoom / oldZoom;
+
+        viewport.scrollLeft = (viewport.scrollLeft + mx) * ratio - mx;
+        viewport.scrollTop = (viewport.scrollTop + my) * ratio - my;
+
+        applyZoom();
+    }, { passive: false });
+
+    // Click on empty area to deselect and handle Panning
+    viewport.addEventListener('mousedown', e => {
+        const isClickingCanvas = e.target === viewport || e.target.classList.contains('node-graph-nodes') || e.target.classList.contains('node-graph-inner') || e.target.closest('.node-graph-svg');
+        const isClickingNodeOrPort = e.target.closest('.graph-node') || e.target.closest('.graph-port');
+
+        if (isClickingCanvas && !isClickingNodeOrPort && !e.target.closest('.node-connection') && !e.target.closest('.node-connection-hitarea')) {
+            _ngSelectedNode = null;
+            _ngSelectedEdge = null;
+            document.querySelectorAll('.graph-node.selected').forEach(n => n.classList.remove('selected'));
+            document.querySelectorAll('.node-connection.selected').forEach(l => l.classList.remove('selected'));
+
+            // Start Panning
+            _ngIsPanning = true;
+            _ngPanStart = {
+                x: e.clientX,
+                y: e.clientY,
+                scrollLeft: viewport.scrollLeft,
+                scrollTop: viewport.scrollTop
+            };
+            viewport.classList.add('panning');
+
+            // Cancel connecting
+            if (_ngConnecting) {
+                _ngConnecting = null;
+                document.querySelectorAll('.graph-port.connecting').forEach(p => p.classList.remove('connecting'));
+                removeTempLine();
+            }
+        }
+    });
+
+    window.addEventListener('mouseup', () => {
+        _ngIsPanning = false;
+        viewport.classList.remove('panning');
+    });
+
+    // Mouse move for temp connection line
+    viewport.addEventListener('mousemove', e => {
+        if (_ngIsPanning) {
+            const dx = e.clientX - _ngPanStart.x;
+            const dy = e.clientY - _ngPanStart.y;
+            viewport.scrollLeft = _ngPanStart.scrollLeft - dx;
+            viewport.scrollTop = _ngPanStart.scrollTop - dy;
+            return;
+        }
+
+        if (_ngConnecting) {
+            const rect = viewport.getBoundingClientRect();
+            const mx = (e.clientX - rect.left + viewport.scrollLeft) / _ngZoom;
+            const my = (e.clientY - rect.top + viewport.scrollTop) / _ngZoom;
+            drawTempLine(_ngConnecting.x, _ngConnecting.y, mx, my);
+        }
+    });
+
+    // Mouse up to cancel connecting if clicking empty space
+    viewport.addEventListener('mouseup', e => {
+        if (_ngConnecting && !e.target.closest('.graph-port')) {
+            _ngConnecting = null;
+            document.querySelectorAll('.graph-port.connecting').forEach(p => p.classList.remove('connecting'));
+            removeTempLine();
+        }
+    });
+}
+
+function checkPlayEnabled() {
+    const btn = document.getElementById('ng-play-btn');
+    if (!btn) return;
+    const hasInputNode = (state.graphNodes || []).some(n => n.type === 'insertPayload');
+    btn.disabled = !hasInputNode;
+}
+
+function executeWorkflowTest() {
+    if (state.currentAgent === null || state.currentTool === null) {
+        showToast('Please select a tool first', 'warning');
+        return;
+    }
+    const tool = state.agents[state.currentAgent].tools[state.currentTool];
+    const inputNode = (state.graphNodes || []).find(n => n.type === 'insertPayload');
+    const inputPayload = inputNode ? inputNode.payload : '';
+
+    if (!inputPayload || !inputPayload.trim()) {
+        showToast('Input payload is mandatory for execution', 'warning');
+        return;
+    }
+
+    // Send message to UI5 wrapping app
+    window.parent.postMessage({
+        action: 'executeWorkflow',
+        toolName: tool.toolName,
+        testMode: true,
+        inputPayload: inputPayload
+    }, '*');
+}
+
+// ── Node CRUD ──────────────────────────────────────────
+function addGraphNode(type, x, y) {
+    const node = {
+        id: _uid(),
+        type: type,
+        x: x,
+        y: y,
+    };
+    // Type-specific defaults
+    if (type === 'insertPayload') node.payload = '{\n}';
+    if (type === 'createSubset') { node.fields = ''; node.inputPayloadPreview = ''; }
+    if (type === 'apiCall') {
+        node.serviceName = '';
+        node.entitySet = '';
+        node.crudType = 'READ';
+        node.apiType = 'oData';
+        node.oDataType = 'Entity';
+        node.expands = [];
+    }
+    if (type === 'customFunction') {
+        node.functionBody = 'async function(input1) {\n    return [];\n}';
+    }
+    if (type === 'returnObject') { node.returnType = 'default'; node.returnLabels = []; }
+
+    state.graphNodes.push(node);
+    renderNodeGraph();
+    showToast(`Added ${NODE_TYPES[type].name}`, 'success');
+}
+
+function deleteGraphNode(nodeId) {
+    state.graphNodes = state.graphNodes.filter(n => n.id !== nodeId);
+    state.graphEdges = state.graphEdges.filter(e => e.from !== nodeId && e.to !== nodeId);
+    if (_ngSelectedNode === nodeId) _ngSelectedNode = null;
+    renderNodeGraph();
+}
+
+function updateGraphNode(nodeId, prop, value) {
+    const node = state.graphNodes.find(n => n.id === nodeId);
+    if (node) node[prop] = value;
+}
+
+function addReturnLabel(nodeId) {
+    const node = state.graphNodes.find(n => n.id === nodeId);
+    if (!node) return;
+    if (!node.returnLabels) node.returnLabels = [];
+    node.returnLabels.push('');
+    renderNodeGraph();
+}
+
+function updateReturnLabel(nodeId, index, value) {
+    const node = state.graphNodes.find(n => n.id === nodeId);
+    if (node && node.returnLabels) node.returnLabels[index] = value;
+}
+
+function removeReturnLabel(nodeId, index) {
+    const node = state.graphNodes.find(n => n.id === nodeId);
+    if (node && node.returnLabels) {
+        node.returnLabels.splice(index, 1);
+        renderNodeGraph();
+    }
+}
+
+function addExpand(nodeId) {
+    const node = state.graphNodes.find(n => n.id === nodeId);
+    if (!node) return;
+    if (!node.expands) node.expands = [];
+    node.expands.push({ id: _uid(), name: '', expands: [] });
+    renderNodeGraph();
+}
+
+function addExpandChild(nodeId, parentId) {
+    const node = state.graphNodes.find(n => n.id === nodeId);
+    if (!node || !node.expands) return;
+    const findAndAdd = (list) => {
+        for (const item of list) {
+            if (item.id === parentId) {
+                if (!item.expands) item.expands = [];
+                item.expands.push({ id: _uid(), name: '', expands: [] });
+                return true;
+            }
+            if (item.expands && findAndAdd(item.expands)) return true;
+        }
+        return false;
+    };
+    findAndAdd(node.expands);
+    renderNodeGraph();
+}
+
+function updateExpandProp(nodeId, expandId, prop, value) {
+    const node = state.graphNodes.find(n => n.id === nodeId);
+    if (!node || !node.expands) return;
+    const findAndUpdate = (list) => {
+        for (const item of list) {
+            if (item.id === expandId) {
+                item[prop] = value;
+                return true;
+            }
+            if (item.expands && findAndUpdate(item.expands)) return true;
+        }
+        return false;
+    };
+    findAndUpdate(node.expands);
+}
+
+function removeExpandById(nodeId, expandId) {
+    const node = state.graphNodes.find(n => n.id === nodeId);
+    if (!node || !node.expands) return;
+    const findAndRemove = (list) => {
+        for (let i = 0; i < list.length; i++) {
+            if (list[i].id === expandId) {
+                list.splice(i, 1);
+                return true;
+            }
+            if (list[i].expands && findAndRemove(list[i].expands)) return true;
+        }
+        return false;
+    };
+    findAndRemove(node.expands);
+    renderNodeGraph();
+}
+
+// ── Connections ────────────────────────────────────────
+function startConnection(nodeId, port, portEl) {
+    if (_ngConnecting) {
+        // Completing connection
+        if (_ngConnecting.fromNodeId === nodeId) {
+            // Can't connect to self
+            _ngConnecting = null;
+            document.querySelectorAll('.graph-port.connecting').forEach(p => p.classList.remove('connecting'));
+            removeTempLine();
+            return;
+        }
+
+        // Determine direction: output → input
+        let fromId, toId;
+        if (_ngConnecting.fromPort === 'output' && port === 'input') {
+            fromId = _ngConnecting.fromNodeId;
+            toId = nodeId;
+        } else if (_ngConnecting.fromPort === 'input' && port === 'output') {
+            fromId = nodeId;
+            toId = _ngConnecting.fromNodeId;
+        } else {
+            // Invalid connection (same port type)
+            showToast('Connect output → input', 'error');
+            _ngConnecting = null;
+            document.querySelectorAll('.graph-port.connecting').forEach(p => p.classList.remove('connecting'));
+            removeTempLine();
+            return;
+        }
+
+        // Check if edge already exists
+        const exists = state.graphEdges.some(e => e.from === fromId && e.to === toId);
+        if (!exists) {
+            state.graphEdges.push({ from: fromId, to: toId });
+            // Update custom function input count
+            updateCustomFunctionInputs(toId);
+        }
+
+        _ngConnecting = null;
+        document.querySelectorAll('.graph-port.connecting').forEach(p => p.classList.remove('connecting'));
+        removeTempLine();
+        renderNodeGraph();
+    } else {
+        // Starting connection
+        const portDot = portEl.querySelector('.graph-port-dot');
+        const viewport = document.getElementById('node-graph-viewport');
+        const vpRect = viewport.getBoundingClientRect();
+        const dotRect = portDot.getBoundingClientRect();
+
+        _ngConnecting = {
+            fromNodeId: nodeId,
+            fromPort: port,
+            x: (dotRect.left - vpRect.left + viewport.scrollLeft) / _ngZoom + 6 / _ngZoom,
+            y: (dotRect.top - vpRect.top + viewport.scrollTop) / _ngZoom + 6 / _ngZoom,
+        };
+        portEl.classList.add('connecting');
+    }
+}
+
+function deleteEdge(fromId, toId) {
+    state.graphEdges = state.graphEdges.filter(e => !(e.from === fromId && e.to === toId));
+    updateCustomFunctionInputs(toId);
+    renderNodeGraph();
+}
+
+function updateCustomFunctionInputs(nodeId) {
+    const node = state.graphNodes.find(n => n.id === nodeId);
+    if (!node || node.type !== 'customFunction') return;
+    // Count incoming edges
+    const inCount = state.graphEdges.filter(e => e.to === nodeId).length;
+    node._inputCount = inCount;
+
+    // Optional: Auto-update template if it looks like the default
+    const params = Array.from({ length: Math.max(1, inCount) }, (_, i) => `input${i + 1}`).join(', ');
+    const defaultTemplate = `async function(${params}) {\n    return [];\n}`;
+
+    // Check if it's currently a default-ish template
+    const current = (node.functionBody || '').trim();
+    if (!current || current === 'return [];' || current === 'return {};' || (current.startsWith('async function(') && current.endsWith('}')) || current.startsWith('// Write your logic')) {
+        // Only auto-update if they haven't written custom logic yet
+        // A simple check: if it contains "return [];" and nothing else substantial
+        if (current.includes('return [];') || !current) {
+            node.functionBody = defaultTemplate;
+        }
+    }
+}
+
+// Get payload JSON from a connected Insert Payload node
+function getConnectedPayload(nodeId) {
+    const inEdges = state.graphEdges.filter(e => e.to === nodeId);
+    for (const edge of inEdges) {
+        const srcNode = state.graphNodes.find(n => n.id === edge.from);
+        if (srcNode && srcNode.type === 'insertPayload' && srcNode.payload) {
+            return srcNode.payload;
+        }
+        // Recurse through intermediate nodes
+        if (srcNode) {
+            const upstream = getConnectedPayload(srcNode.id);
+            if (upstream) return upstream;
+        }
+    }
+    return null;
+}
+
+// Toggle a field in the subset fields list
+function toggleSubsetField(nodeId, fieldName, checked) {
+    const node = state.graphNodes.find(n => n.id === nodeId);
+    if (!node) return;
+    let fields = (node.fields || '').split(',').map(f => f.trim()).filter(f => f);
+    if (checked) {
+        if (!fields.includes(fieldName)) fields.push(fieldName);
+    } else {
+        fields = fields.filter(f => f !== fieldName);
+    }
+    node.fields = fields.join(', ');
+    renderNodeGraph();
+}
+
+// ── Temp connection line ──────────────────────────────
+function drawTempLine(x1, y1, x2, y2) {
+    const svg = document.getElementById('node-graph-svg');
+    removeTempLine();
+    const dx = Math.abs(x2 - x1) * 0.5;
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', `M${x1},${y1} C${x1 + dx},${y1} ${x2 - dx},${y2} ${x2},${y2}`);
+    path.classList.add('node-connection-temp');
+    path.id = 'temp-conn-line';
+    svg.appendChild(path);
+}
+
+function removeTempLine() {
+    const el = document.getElementById('temp-conn-line');
+    if (el) el.remove();
+}
+
+// ── Node dragging ─────────────────────────────────────
+function onNodeMouseDown(e, nodeId) {
+    if (e.target.closest('.graph-port') || e.target.closest('.graph-node-delete') || e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+    e.preventDefault();
+    _ngDraggingNodeId = nodeId;
+    _ngSelectedNode = nodeId;
+
+    // Mark selected
+    document.querySelectorAll('.graph-node.selected').forEach(n => n.classList.remove('selected'));
+    document.getElementById('gn-' + nodeId)?.classList.add('selected');
+
+    const node = state.graphNodes.find(n => n.id === nodeId);
+    const viewport = document.getElementById('node-graph-viewport');
+    const vpRect = viewport.getBoundingClientRect();
+
+    // Account for zoom in offset calculation
+    _ngDragOffset.x = (e.clientX - vpRect.left + viewport.scrollLeft) / _ngZoom - node.x;
+    _ngDragOffset.y = (e.clientY - vpRect.top + viewport.scrollTop) / _ngZoom - node.y;
+
+    const onMove = (me) => {
+        if (!_ngDraggingNodeId) return;
+        const nx = (me.clientX - vpRect.left + viewport.scrollLeft) / _ngZoom - _ngDragOffset.x;
+        const ny = (me.clientY - vpRect.top + viewport.scrollTop) / _ngZoom - _ngDragOffset.y;
+        node.x = Math.max(0, nx);
+        node.y = Math.max(0, ny);
+
+        const el = document.getElementById('gn-' + nodeId);
+        if (el) {
+            el.style.left = node.x + 'px';
+            el.style.top = node.y + 'px';
+        }
+        drawEdges();
+    };
+
+    const onUp = () => {
+        _ngDraggingNodeId = null;
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+    };
+
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+}
+
+// ── Render ────────────────────────────────────────────
+function renderNodeGraph() {
+    const container = document.getElementById('node-graph-nodes');
+    const emptyEl = document.getElementById('node-graph-empty');
+    const countEl = document.getElementById('dnd-step-count');
+    if (!container) return;
+
+    const nodes = state.graphNodes || [];
+    countEl.textContent = `${nodes.length} node${nodes.length !== 1 ? 's' : ''}`;
+
+    // Toggle Play Button
+    const playBtn = document.getElementById('ng-play-btn');
+    if (playBtn) {
+        const hasInput = nodes.some(n => n.type === 'insertPayload' && (n.payload || '').trim().length > 0);
+        playBtn.disabled = !hasInput;
+    };
+
+    if (nodes.length === 0) {
+        container.innerHTML = '';
+        if (emptyEl) emptyEl.style.display = '';
+        drawEdges();
+        return;
+    }
+    if (emptyEl) emptyEl.style.display = 'none';
+
+    container.innerHTML = nodes.map(node => {
+        const meta = NODE_TYPES[node.type] || NODE_TYPES.insertPayload;
+        const isSelected = _ngSelectedNode === node.id;
+
+        let bodyHtml = '';
+        if (node.type === 'insertPayload') {
+            bodyHtml = `
+                <label>JSON Payload</label>
+                <textarea placeholder='{ "key": "value" }' onchange="updateGraphNode('${node.id}','payload',this.value)" onclick="event.stopPropagation()" onmousedown="event.stopPropagation()">${escHtml(node.payload || '{\n}')}</textarea>
+            `;
+        } else if (node.type === 'createSubset') {
+            // Auto-populate input payload from connected Insert Payload node
+            const connPayload = getConnectedPayload(node.id);
+            let fieldCheckboxes = '';
+            if (connPayload) {
+                try {
+                    const keys = Object.keys(JSON.parse(connPayload));
+                    const selectedFields = (node.fields || '').split(',').map(f => f.trim()).filter(f => f);
+                    if (keys.length > 0) {
+                        fieldCheckboxes = '<div class="node-field-picker">' +
+                            keys.map(k => {
+                                const checked = selectedFields.includes(k) ? 'checked' : '';
+                                return `<label class="node-checkbox"><input type="checkbox" ${checked} onchange="toggleSubsetField('${node.id}','${k}',this.checked)" onclick="event.stopPropagation()" onmousedown="event.stopPropagation()"> ${escHtml(k)}</label>`;
+                            }).join('') +
+                            '</div>';
+                    }
+                } catch { /* invalid JSON */ }
+            }
+            bodyHtml = `
+                <label>Input Payload</label>
+                <textarea class="node-readonly-payload" readonly onclick="event.stopPropagation()" onmousedown="event.stopPropagation()">${escHtml(connPayload || '(connect an Insert Payload block)')}</textarea>
+                <label>Select Fields</label>
+                ${fieldCheckboxes || '<input placeholder="e.g. firstName, lastName" value="' + escHtml(node.fields || '') + '" onchange="updateGraphNode(\'' + node.id + '\',\'fields\',this.value)" onclick="event.stopPropagation()" onmousedown="event.stopPropagation()">'}
+                <p class="node-description">Extracts specified fields from incoming data.</p>
+            `;
+        } else if (node.type === 'apiCall') {
+            const apiType = node.apiType || 'oData';
+            const oDataType = node.oDataType || 'Entity';
+            const crudType = node.crudType || 'READ';
+
+            const apiTypeOpts = ['oData', 'REST'].map(t =>
+                `<option value="${t}" ${apiType === t ? 'selected' : ''}>${t}</option>`
+            ).join('');
+
+            const oDataTypeOpts = ['Entity', 'Function Call'].map(t =>
+                `<option value="${t}" ${oDataType === t ? 'selected' : ''}>${t}</option>`
+            ).join('');
+
+            const crudOpts = ['READ', 'CREATE', 'UPDATE', 'DELETE'].map(op =>
+                `<option value="${op}" ${crudType === op ? 'selected' : ''}>${op}</option>`
+            ).join('');
+
+            let oDataDropdown = '';
+            let expandHtml = '';
+            if (apiType === 'oData') {
+                oDataDropdown = `
+                    <label>oData Type</label>
+                    <select onchange="updateGraphNode('${node.id}','oDataType',this.value); renderNodeGraph()" onclick="event.stopPropagation()" onmousedown="event.stopPropagation()">
+                        ${oDataTypeOpts}
+                    </select>
+                `;
+
+                if (oDataType === 'Entity') {
+                    const expands = node.expands || [];
+                    const renderExpandTreeUI = (list, level = 0) => {
+                        if (!list || list.length === 0) return '';
+                        return list.map((exp) => `
+                            <div class="expand-entry" style="margin-left: ${level * 10}px; margin-top: 4px;">
+                                <div style="display:flex; gap:3px; align-items:center;">
+                                    <input placeholder="Property (e.g. Items)" value="${escHtml(exp.name)}"
+                                           onchange="updateExpandProp('${node.id}', '${exp.id}', 'name', this.value)"
+                                           onclick="event.stopPropagation()" onmousedown="event.stopPropagation()"
+                                           style="flex:1; font-size:10px; padding:2px 4px; border-radius:2px; height:20px; line-height:20px; border:1px solid var(--border); background:var(--bg);">
+                                    <button onclick="event.stopPropagation(); addExpandChild('${node.id}', '${exp.id}')"
+                                            title="Add sub-expand"
+                                            style="border:none; background:none; color:var(--primary-light); cursor:pointer; font-size:14px; padding:0 2px; font-weight:bold;">+</button>
+                                    <button onclick="event.stopPropagation(); removeExpandById('${node.id}', '${exp.id}')"
+                                            title="Remove"
+                                            style="border:none; background:none; color:var(--error-light); cursor:pointer; font-size:14px; padding:0 2px;">&times;</button>
+                                </div>
+                                ${renderExpandTreeUI(exp.expands, level + 1)}
+                            </div>
+                        `).join('');
+                    };
+
+                    expandHtml = `
+                        <label>Expands (Graphical Tree)</label>
+                        <div class="node-expands-list" style="background: rgba(0,0,0,0.1); padding: 6px; border-radius: 4px; margin-top: 4px;">
+                            ${renderExpandTreeUI(expands)}
+                            <button onclick="event.stopPropagation(); addExpand('${node.id}')" 
+                                    style="width:100%; padding:4px; font-size:10px; border:1px dashed var(--border); background:var(--bg-elevated); color:var(--text-dim); border-radius:4px; cursor:pointer; margin-top:6px; transition:all 0.2s;">
+                                + Add Root Navigation
+                            </button>
+                        </div>
+                    `;
+                }
+            }
+
+            bodyHtml = `
+                <label>API Style</label>
+                <select onchange="updateGraphNode('${node.id}','apiType',this.value); renderNodeGraph()" onclick="event.stopPropagation()" onmousedown="event.stopPropagation()">
+                    ${apiTypeOpts}
+                </select>
+                ${oDataDropdown}
+                <label>Operation</label>
+                <select onchange="updateGraphNode('${node.id}','crudType',this.value)" onclick="event.stopPropagation()" onmousedown="event.stopPropagation()">
+                    ${crudOpts}
+                </select>
+                <label>Service Name</label>
+                <input placeholder="e.g. HRService" value="${escHtml(node.serviceName || '')}"
+                       onchange="updateGraphNode('${node.id}','serviceName',this.value)" onclick="event.stopPropagation()" onmousedown="event.stopPropagation()">
+                <label>${oDataType === 'Function Call' ? 'Function Name' : 'EntitySet'}</label>
+                <input placeholder="${oDataType === 'Function Call' ? 'e.g. getDetails' : 'e.g. Employees'}" value="${escHtml(node.entitySet || '')}"
+                       onchange="updateGraphNode('${node.id}','entitySet',this.value)" onclick="event.stopPropagation()" onmousedown="event.stopPropagation()">
+                ${expandHtml}
+            `;
+        } else if (node.type === 'customFunction') {
+            const inCount = state.graphEdges.filter(e => e.to === node.id).length;
+            bodyHtml = `
+                <label>Custom Logic (JavaScript)</label>
+                <textarea onclick="event.stopPropagation()" onmousedown="event.stopPropagation()" 
+                          onchange="updateGraphNode('${node.id}','functionBody',this.value)"
+                          style="font-family: monospace; white-space: pre;"
+                          placeholder="async function(input1) { ... }">${escHtml(node.functionBody || 'async function(input1) {\n    return [];\n}')}</textarea>
+                <p class="node-description">${inCount} input${inCount !== 1 ? 's' : ''} connected</p>
+            `;
+        } else if (node.type === 'returnObject') {
+            const retTypeOpts = ['default', 'multi'].map(op =>
+                `<option value="${op}" ${(!node.returnType && op === 'default') || node.returnType === op ? 'selected' : ''}>${op}</option>`
+            ).join('');
+            let multiHtml = '';
+            if (node.returnType === 'multi') {
+                const labels = node.returnLabels || [];
+                multiHtml = `<div class="node-return-labels" style="margin-top:8px;">
+                    ${labels.map((lbl, idx) => `
+                        <div style="display:flex; gap:6px; margin-bottom:6px; align-items:center;">
+                            <div class="graph-port in-port" onclick="event.stopPropagation();startConnection('${node.id}','input',this)" style="padding:0; margin-left:-6px; cursor:crosshair; display:flex; align-items:center; opacity:0.8;">
+                                <div class="graph-port-dot"></div>
+                            </div>
+                            <span style="font-size:10px; font-weight:700; color:var(--primary-light); cursor:default; user-select:none;">IN</span>
+                            <input placeholder="Label ${idx + 1}" value="${escHtml(lbl)}" 
+                                   onchange="updateReturnLabel('${node.id}', ${idx}, this.value)" 
+                                   onclick="event.stopPropagation()" onmousedown="event.stopPropagation()" style="flex:1; margin-left:4px;">
+                            <button onclick="event.stopPropagation(); removeReturnLabel('${node.id}', ${idx})" style="padding:2px 4px; border:none; background:none; color:var(--text-dim); cursor:pointer;">&times;</button>
+                        </div>
+                    `).join('')}
+                    <button onclick="event.stopPropagation(); addReturnLabel('${node.id}')" 
+                            style="margin-top:10px; padding:6px 14px; font-size:12px; font-weight:600; cursor:pointer; border-radius:20px; border:1px solid var(--border); background:linear-gradient(135deg, var(--bg-hover) 0%, var(--bg-elevated) 100%); color:var(--primary-light); display:flex; align-items:center; justify-content:center; width:fit-content; margin-left:auto; margin-right:auto; box-shadow:0 2px 5px rgba(0,0,0,0.2); transition:transform 0.1s ease, filter 0.2s ease;">
+                        + Add Input
+                    </button>
+                    ${labels.length === 0 ? '<p class="node-description" style="margin-top:4px; text-align:center;">Add inputs to return a structured JSON object.</p>' : ''}
+                </div>`;
+            }
+            bodyHtml = `
+                <label>Return Type</label>
+                <select onchange="updateGraphNode('${node.id}','returnType',this.value); renderNodeGraph()" onclick="event.stopPropagation()" onmousedown="event.stopPropagation()">
+                    ${retTypeOpts}
+                </select>
+                ${multiHtml}
+                <p class="node-description" style="margin-top:8px;">Returns result(s) to caller.</p>
+                ${node.returnType === 'multi' ? `<p class="node-description" style="margin-top:4px;">${state.graphEdges.filter(e => e.to === node.id).length} connection(s) mapped</p>` : ''}
+            `;
+        }
+
+        // Ports
+        let portsHtml = '<div class="graph-node-ports">';
+        if (meta.hasInput && !(node.type === 'returnObject' && node.returnType === 'multi')) {
+            portsHtml += `<div class="graph-port-group in-port-group">
+                <div class="graph-port in-port" onclick="event.stopPropagation();startConnection('${node.id}','input',this)">
+                    <div class="graph-port-dot"></div>
+                    <span class="graph-port-label">In</span>
+                </div>
+            </div>`;
+        } else {
+            portsHtml += `<div class="graph-port-group in-port-group"></div>`;
+        }
+        if (meta.hasOutput) {
+            portsHtml += `<div class="graph-port-group out-port-group" style="align-items:flex-end;">
+                <div class="graph-port out-port" onclick="event.stopPropagation();startConnection('${node.id}','output',this)" style="flex-direction:row-reverse;">
+                    <div class="graph-port-dot"></div>
+                    <span class="graph-port-label">Out</span>
+                </div>
+            </div>`;
+        } else {
+            portsHtml += `<div class="graph-port-group out-port-group"></div>`;
+        }
+        portsHtml += '</div>';
+
+        return `
+            <div class="graph-node ${isSelected ? 'selected' : ''}" id="gn-${node.id}"
+                 style="left:${node.x}px; top:${node.y}px;"
+                 onmousedown="onNodeMouseDown(event,'${node.id}')">
+                <div class="graph-node-header type-${node.type}">
+                    <div class="graph-node-header-left">
+                        <span class="graph-node-type-label">${meta.name}</span>
+                    </div>
+                    <button class="graph-node-delete" onclick="event.stopPropagation();deleteGraphNode('${node.id}')" title="Delete node">&times;</button>
+                </div>
+                <div class="graph-node-body">${bodyHtml}</div>
+                ${portsHtml}
+            </div>
+        `;
+    }).join('');
+
+    // Draw connection lines after nodes are placed
+    requestAnimationFrame(() => drawEdges());
+    
+    // Check if Play button should be enabled
+    checkPlayEnabled();
+}
+
+function drawEdges() {
+    const svg = document.getElementById('node-graph-svg');
+    const viewport = document.getElementById('node-graph-viewport');
+    if (!svg || !viewport) return;
+
+    // Keep temp line if exists
+    const tempLine = document.getElementById('temp-conn-line');
+
+    // Clear all edges except temp
+    svg.innerHTML = '';
+    if (tempLine) svg.appendChild(tempLine);
+
+    const vpRect = viewport.getBoundingClientRect();
+
+    (state.graphEdges || []).forEach(edge => {
+        const fromEl = document.getElementById('gn-' + edge.from);
+        const toEl = document.getElementById('gn-' + edge.to);
+        if (!fromEl || !toEl) return;
+
+        // Find output port of "from" node
+        const fromPorts = fromEl.querySelectorAll('.out-port .graph-port-dot');
+        const fromPort = fromPorts.length > 0 ? fromPorts[0] : null;
+
+        // Find input port of "to" node
+        const toPorts = toEl.querySelectorAll('.in-port .graph-port-dot');
+        let toPort = null;
+        if (toPorts.length > 0) {
+            // Find which index this edge is among all incoming edges
+            const allEdgesToTarget = state.graphEdges.filter(e => e.to === edge.to);
+            const edgeIndex = allEdgesToTarget.findIndex(e => e.from === edge.from);
+
+            // Route the edge to the correct port if multiple exist (e.g. multi-return mode)
+            if (edgeIndex >= 0 && edgeIndex < toPorts.length) {
+                toPort = toPorts[edgeIndex];
+            } else {
+                toPort = toPorts[0]; // Fallback to first port
+            }
+        }
+
+        if (!fromPort || !toPort) return;
+
+        const fromRect = fromPort.getBoundingClientRect();
+        const toRect = toPort.getBoundingClientRect();
+
+        const x1 = (fromRect.left - vpRect.left + viewport.scrollLeft) / _ngZoom + 6 / _ngZoom;
+        const y1 = (fromRect.top - vpRect.top + viewport.scrollTop) / _ngZoom + 6 / _ngZoom;
+        const x2 = (toRect.left - vpRect.left + viewport.scrollLeft) / _ngZoom + 6 / _ngZoom;
+        const y2 = (toRect.top - vpRect.top + viewport.scrollTop) / _ngZoom + 6 / _ngZoom;
+
+        const dx = Math.abs(x2 - x1) * 0.5;
+        const d = `M${x1},${y1} C${x1 + dx},${y1} ${x2 - dx},${y2} ${x2},${y2}`;
+
+        // Invisible hit area for clicking
+        const hitArea = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        hitArea.setAttribute('d', d);
+        hitArea.classList.add('node-connection-hitarea');
+        hitArea.addEventListener('dblclick', () => deleteEdge(edge.from, edge.to));
+        svg.appendChild(hitArea);
+
+        // Visible line
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        const isSelected = _ngSelectedEdge && _ngSelectedEdge.from === edge.from && _ngSelectedEdge.to === edge.to;
+        path.setAttribute('d', d);
+        path.classList.add('node-connection');
+        if (isSelected) path.classList.add('selected');
+
+        const selectHandler = (e) => {
+            e.stopPropagation();
+            _ngSelectedNode = null;
+            _ngSelectedEdge = { from: edge.from, to: edge.to };
+            document.querySelectorAll('.graph-node.selected').forEach(n => n.classList.remove('selected'));
+            document.querySelectorAll('.node-connection.selected').forEach(l => l.classList.remove('selected'));
+            path.classList.add('selected');
+        };
+
+        hitArea.addEventListener('mousedown', selectHandler);
+        path.addEventListener('mousedown', selectHandler);
+
+        hitArea.addEventListener('dblclick', (e) => { e.stopPropagation(); deleteEdge(edge.from, edge.to); });
+        path.addEventListener('dblclick', (e) => { e.stopPropagation(); deleteEdge(edge.from, edge.to); });
+        svg.appendChild(path);
+    });
+}
+
+// ── Clear / Generate ──────────────────────────────────
+function clearDnDWorkflow() {
+    if (!confirm('Clear all nodes and connections?')) return;
+    state.graphNodes = [];
+    state.graphEdges = [];
+    _ngSelectedNode = null;
+    _ngConnecting = null;
+    renderNodeGraph();
+    document.getElementById('dnd-code-output').style.display = 'none';
+    const configOut = document.getElementById('dnd-config-output');
+    if (configOut) configOut.style.display = 'none';
+    showToast('Workflow cleared', 'success');
+}
+
+// ── Recursive Expansion Generator ──────────────────
+function generateColumnsCode(expands) {
+    if (!expands || expands.length === 0) return '';
+
+    function gen(list, depth = 0) {
+        const items = list.filter(e => (e.name || '').trim());
+        if (items.length === 0) return '';
+
+        const subIndent = '    '.repeat(depth + 1);
+        const closingIndent = '    '.repeat(depth);
+
+        let s = `c => {\n${subIndent}c('*');`;
+        items.forEach(k => {
+            const sub = gen(k.expands || [], depth + 1);
+            s += `\n${subIndent}c.${k.name.trim()}${sub || '()'};`;
+        });
+        s += `\n${closingIndent}}`;
+        return s;
+    }
+
+    return `.columns(${gen(expands, 1)})`;
+}
+
+function generateDnDCode() {
+    const nodes = state.graphNodes || [];
+    const edges = state.graphEdges || [];
+
+    if (nodes.length === 0) {
+        showToast('No nodes in workflow', 'error');
+        return;
+    }
+
+    const sorted = topologicalSort(nodes, edges);
+    const lines = [
+        'async (cds, inputPayload) => {',
+        '    const results = {};',
+        '',
+    ];
+
+    const varNames = {};
+
+    sorted.forEach((node, i) => {
+        const stepNum = i + 1;
+        const varName = `step${stepNum}`;
+        varNames[node.id] = varName;
+
+        const inputEdges = edges.filter(e => e.to === node.id);
+        const inputVars = inputEdges.map(e => varNames[e.from] || 'inputPayload');
+
+        if (node.type === 'insertPayload') {
+            lines.push(`    // Step ${stepNum}: Insert Payload`);
+            try {
+                const parsedPayload = JSON.parse(node.payload || '{}');
+                lines.push(`    const ${varName} = ${JSON.stringify(parsedPayload, null, 2).split('\n').map((l, li) => li === 0 ? l : '    ' + l).join('\n')};`);
+            } catch {
+                lines.push(`    const ${varName} = { ...inputPayload };`);
+            }
+            lines.push('');
+
+        } else if (node.type === 'createSubset') {
+            const inputVar = inputVars[0] || 'inputPayload';
+            const fields = (node.fields || '').split(',').map(f => f.trim()).filter(f => f);
+            lines.push(`    // Step ${stepNum}: Create Payload Subset`);
+            if (fields.length > 0) {
+                const picks = fields.map(f => `'${f}'`).join(', ');
+                lines.push(`    const ${varName} = {};`);
+                lines.push(`    for (const key of [${picks}]) {`);
+                lines.push(`        if (${inputVar}[key] !== undefined) ${varName}[key] = ${inputVar}[key];`);
+                lines.push(`    }`);
+            } else {
+                lines.push(`    const ${varName} = { ...${inputVar} };`);
+            }
+            lines.push('');
+
+        } else if (node.type === 'apiCall') {
+            const inputVar = inputVars[0] || 'inputPayload';
+            const svc = node.serviceName || 'UnknownService';
+            const ent = node.entitySet || 'UnknownEntity';
+            const crud = node.crudType || 'READ';
+            lines.push(`    // Step ${stepNum}: API ${crud} → ${svc} / ${ent}`);
+            lines.push(`    const srv_${varName} = await cds.connect.to('${svc}');`);
+            if (crud === 'READ') {
+                let columnsHtml = '';
+                if (node.apiType === 'oData' && node.oDataType === 'Entity' && node.expands && node.expands.length > 0) {
+                    columnsHtml = generateColumnsCode(node.expands);
+                }
+                lines.push(`    const query_${varName} = SELECT.from('${ent}').where(${inputVar})${columnsHtml};`);
+                lines.push(`    const ${varName} = await srv_${varName}.run(query_${varName});`);
+            } else if (crud === 'CREATE') {
+                lines.push(`    const query_${varName} = INSERT.into('${ent}').entries(${inputVar});`);
+                lines.push(`    const ${varName} = await srv_${varName}.run(query_${varName});`);
+            } else if (crud === 'UPDATE') {
+                lines.push(`    const query_${varName} = UPDATE('${ent}').with(${inputVar});`);
+                lines.push(`    const ${varName} = await srv_${varName}.run(query_${varName});`);
+            } else if (crud === 'DELETE') {
+                lines.push(`    const query_${varName} = DELETE.from('${ent}').where(${inputVar});`);
+                lines.push(`    const ${varName} = await srv_${varName}.run(query_${varName});`);
+            }
+            lines.push(`    results['${ent}'] = ${varName};`);
+            lines.push('');
+
+        } else if (node.type === 'customFunction') {
+            const params = inputVars.length > 0 ? inputVars.join(', ') : 'inputPayload';
+            lines.push(`    // Step ${stepNum}: Custom Function`);
+            const fnBody = node.functionBody || 'async function(input1) {\n    return [];\n}';
+            lines.push(`    const ${varName} = await (${fnBody})(${params});`);
+            lines.push('');
+
+        } else if (node.type === 'returnObject') {
+            lines.push(`    // Step ${stepNum}: Return`);
+            if (node.returnType === 'multi') {
+                const labels = node.returnLabels || [];
+                if (labels.length === 0) {
+                    lines.push('    return {};');
+                } else {
+                    lines.push(`    return {`);
+                    labels.forEach((lbl, idx) => {
+                        const valVar = inputVars[idx] || 'undefined';
+                        lines.push(`        "${lbl || 'param' + (idx + 1)}": ${valVar},`);
+                    });
+                    lines.push('    };');
+                }
+            } else {
+                lines.push(`    return ${inputVars[0] || 'results'};`);
+            }
+            lines.push('');
+        }
+    });
+
+    const hasReturn = nodes.some(n => n.type === 'returnObject');
+    if (!hasReturn) lines.push('    return results;');
+    lines.push('}');
+
+    const code = lines.join('\n');
+    const codeOutput = document.getElementById('dnd-code-output');
+    const codePreview = document.getElementById('dnd-code-preview');
+    if (codeOutput && codePreview) {
+        codeOutput.style.display = '';
+        codePreview.value = code;
+        autoGrow(codePreview);
+    }
+
+    // Output Configuration JSON
+    const configOutput = document.getElementById('dnd-config-output');
+    const configPreview = document.getElementById('dnd-config-preview');
+    if (configOutput && configPreview) {
+        const configFlow = {
+            nodes: nodes.map(n => {
+                const cleanNode = { ...n };
+                delete cleanNode._inputCount;
+                return cleanNode;
+            }),
+            edges: edges
+        };
+        configOutput.style.display = '';
+        configPreview.value = JSON.stringify(configFlow, null, 4);
+        autoGrow(configPreview);
+    }
+
+    showToast('Code & config generated from node graph', 'success');
+}
+
+function topologicalSort(nodes, edges) {
+    const inDegree = {};
+    const adj = {};
+    nodes.forEach(n => { inDegree[n.id] = 0; adj[n.id] = []; });
+    edges.forEach(e => {
+        if (inDegree[e.to] !== undefined) inDegree[e.to]++;
+        if (adj[e.from]) adj[e.from].push(e.to);
+    });
+
+    const queue = nodes.filter(n => inDegree[n.id] === 0).map(n => n.id);
+    const sorted = [];
+    const visited = new Set();
+
+    while (queue.length > 0) {
+        const id = queue.shift();
+        if (visited.has(id)) continue;
+        visited.add(id);
+        sorted.push(nodes.find(n => n.id === id));
+
+        (adj[id] || []).forEach(next => {
+            inDegree[next]--;
+            if (inDegree[next] === 0) queue.push(next);
+        });
+    }
+
+    // Add any unvisited nodes (disconnected)
+    nodes.forEach(n => { if (!visited.has(n.id)) sorted.push(n); });
+
+    return sorted;
+}
+
+// Initialize
+const _ngInit = document.readyState === 'loading'
+    ? null
+    : setTimeout(() => { initNodeGraphListeners(); renderNodeGraph(); }, 100);
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+        setTimeout(() => { initNodeGraphListeners(); renderNodeGraph(); }, 200);
+    });
+}
+
+// ═══════════════════════════════════════════════════════════
 //  Save
 // ═══════════════════════════════════════════════════════════
 async function saveAll() {
@@ -1182,11 +2314,37 @@ async function saveAll() {
         if (state.currentAgent !== null && state.currentTool !== null) {
             const tool = state.agents[state.currentAgent].tools[state.currentTool];
             const queryCode = document.getElementById('fn-code-preview').value;
+
+            // Build the clean configuration flow JSON from the actual current graph state
+            const configFlow = {
+                nodes: (state.graphNodes || []).map(n => {
+                    const cleanNode = { ...n };
+                    // Ensure defaults are persisted even if data was legacy
+                    if (cleanNode.type === 'apiCall') {
+                        if (!cleanNode.apiType) cleanNode.apiType = 'oData';
+                        if (!cleanNode.oDataType) cleanNode.oDataType = 'Entity';
+                        if (!cleanNode.expands) cleanNode.expands = [];
+
+                        // Deep clean empty expands
+                        const cleanList = (list) => (list || [])
+                            .filter(e => e.name && e.name.trim())
+                            .map(e => ({ ...e, name: e.name.trim(), expands: cleanList(e.expands) }));
+
+                        cleanNode.expands = cleanList(cleanNode.expands);
+                    }
+                    delete cleanNode._inputCount;
+                    return cleanNode;
+                }),
+                edges: state.graphEdges || []
+            };
+            const configJson = JSON.stringify(configFlow, null, 4);
+
             window.parent.postMessage({
                 action: 'saveTool',
                 tool: tool,
                 sampleForm: state.sampleFormDef,
-                queryCode: queryCode
+                queryCode: queryCode,
+                configJson: configJson
             }, '*');
         }
 
@@ -1228,6 +2386,8 @@ function syncCurrentEdits() {
             if (tost) tool.operationSubtype = tost.value;
             if (fj) { try { tool.formToBeSent = JSON.parse(fj.value); } catch { } }
             tool.apiCalls = state.apiCalls || [];
+            tool.graphNodes = state.graphNodes || [];
+            tool.graphEdges = state.graphEdges || [];
         }
     }
 }

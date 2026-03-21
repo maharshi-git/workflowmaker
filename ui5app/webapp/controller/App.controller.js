@@ -34,12 +34,11 @@ sap.ui.define([
                     oEvent.data.queryCode || "// No code generated yet"
                 );
             } else if (oEvent.data && oEvent.data.action === "saveTool") {
-                this.datamanager(oEvent.data.tool, oEvent.data.sampleForm, oEvent.data.queryCode);
+                this.datamanager(oEvent.data.tool, oEvent.data.sampleForm, oEvent.data.queryCode, oEvent.data.configJson);
             } else if (oEvent.data && oEvent.data.action === "readTool") {
                 this._onReadTool(oEvent.data.toolName, oEvent.source);
-            } else if (oEvent.data && oEvent.data.action === "testRemote") {
-                console.log("Remote Test Triggered:", oEvent.data.functionCode, oEvent.data.inputPayload);
-                sap.m.MessageToast.show("Remote test triggered for: " + (oEvent.data.inputPayload ? JSON.stringify(oEvent.data.inputPayload) : "No Payload"));
+            } else if (oEvent.data && oEvent.data.action === "executeWorkflow") {
+                this._onExecuteWorkflow(oEvent.data, oEvent.source);
             }
         },
 
@@ -55,7 +54,8 @@ sap.ui.define([
             var oResultData = {
                 intent: null,
                 bigForm: null,
-                function: null
+                function: null,
+                configFlow: null
             };
 
             var p1 = new Promise(function (resolve) {
@@ -79,7 +79,14 @@ sap.ui.define([
                 });
             });
 
-            Promise.all([p1, p2, p3]).then(function () {
+            var p4 = new Promise(function (resolve) {
+                oModel.read("/WorkflowConfig('" + sToolName + "')", {
+                    success: function (oData) { oResultData.configFlow = oData; resolve(); },
+                    error: function () { resolve(); }
+                });
+            });
+
+            Promise.all([p1, p2, p3, p4]).then(function () {
                 oSourceWindow.postMessage({
                     action: "toolDataReceived",
                     toolName: sToolName,
@@ -88,7 +95,7 @@ sap.ui.define([
             });
         },
 
-        datamanager: function (oTool, aSampleForm, sQueryCode) {
+        datamanager: function (oTool, aSampleForm, sQueryCode, sConfigJson) {
             // "the UI5 app will call the service of onbordeedevice via a v2 oModel.create call"
             // Using the unnamed default model from manifest.json
             var oModel = this.getView().getModel();
@@ -147,6 +154,21 @@ sap.ui.define([
                     },
                     error: function (oErr) {
                         console.error("Error saving ToolFunction for " + oTool.toolName, oErr);
+                    }
+                });
+            }
+
+            if (sConfigJson) {
+                var oConfigPayload = {
+                    toolName: oTool.toolName,
+                    configJson: sConfigJson
+                };
+                oModel.create("/WorkflowConfig", oConfigPayload, {
+                    success: function () {
+                        console.log("Saved WorkflowConfig for: " + oTool.toolName);
+                    },
+                    error: function (oErr) {
+                        console.error("Error saving WorkflowConfig for " + oTool.toolName, oErr);
                     }
                 });
             }
@@ -209,6 +231,34 @@ sap.ui.define([
                     oDialog.close();
                 });
             }
+        },
+
+        _onExecuteWorkflow: function (oData, oSourceWindow) {
+            var oModel = this.getView().getModel();
+            if (!oModel || !oModel.read) { // Using standard check from _onReadTool
+                oModel = new sap.ui.model.odata.v2.ODataModel("/odata/v2/device/");
+            }
+
+            var oPayload = {
+                toolName: oData.toolName,
+                testMode: !!oData.testMode,
+                inputPayload: oData.inputPayload || ""
+            };
+
+            sap.m.MessageToast.show("Executing workflow: " + oData.toolName);
+
+            oModel.create("/ExecuteWorkflow", oPayload, {
+                success: function (oResp) {
+                    oSourceWindow.postMessage({
+                        action: "workflowExecuted",
+                        response: oResp.outputResponse
+                    }, "*");
+                },
+                error: function (oErr) {
+                    console.error("Workflow execution failed", oErr);
+                    sap.m.MessageToast.show("Execution failed");
+                }
+            });
         }
     });
 });

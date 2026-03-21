@@ -912,6 +912,698 @@ select.form-input {
     min-height: 60px;
 }
 
+/* ── Drag & Drop Workflow Builder ──────────────────────── */
+.dnd-workspace {
+    display: flex;
+    gap: 16px;
+    min-height: 500px;
+}
+
+.dnd-palette {
+    width: 210px;
+    flex-shrink: 0;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease, margin 0.3s ease, padding 0.3s ease;
+    overflow-x: hidden;
+    overflow-y: auto;
+}
+
+.dnd-palette-title {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+    padding: 0 2px;
+}
+
+.dnd-block-source {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    cursor: grab;
+    transition: var(--transition);
+    user-select: none;
+}
+
+.dnd-block-source:hover {
+    border-color: var(--primary-light);
+    box-shadow: 0 2px 12px rgba(124, 58, 237, 0.12);
+    transform: translateY(-1px);
+}
+
+.dnd-block-source:active {
+    cursor: grabbing;
+    transform: scale(0.97);
+    opacity: 0.85;
+}
+
+.dnd-block-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.dnd-icon-payload {
+    background: linear-gradient(135deg, #6366f1, #818cf8);
+    color: #e0e7ff;
+}
+
+.dnd-icon-subset {
+    background: linear-gradient(135deg, #f59e0b, #fbbf24);
+    color: #451a03;
+}
+
+.dnd-icon-api {
+    background: linear-gradient(135deg, #10b981, #34d399);
+    color: #022c22;
+}
+
+.dnd-icon-func {
+    background: linear-gradient(135deg, #ef4444, #f97316);
+    color: #fff;
+}
+
+.dnd-icon-return {
+    background: linear-gradient(135deg, #8b5cf6, #a78bfa);
+    color: #ede9fe;
+}
+
+.dnd-block-info {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    overflow: hidden;
+}
+
+.dnd-block-name {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text);
+    white-space: nowrap;
+}
+
+.dnd-block-desc {
+    font-size: 10px;
+    color: var(--text-dim);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* ── Node Graph Canvas ──────────────────────────────────── */
+.node-graph-canvas {
+    flex: 1;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    position: relative;
+}
+
+.node-graph-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 16px;
+    background: var(--bg-surface);
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    flex-shrink: 0;
+}
+
+.node-graph-toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.ng-zoom-controls {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 2px;
+}
+
+.ng-zoom-btn {
+    width: 26px;
+    height: 26px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: 600;
+    transition: var(--transition);
+}
+
+.ng-zoom-btn:hover {
+    background: var(--bg-hover);
+    color: var(--text);
+}
+
+.ng-zoom-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text);
+    min-width: 38px;
+    text-align: center;
+    text-transform: none;
+    letter-spacing: 0;
+}
+
+.ng-fullscreen-btn {
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--border);
+    background: var(--bg-elevated);
+    color: var(--text-muted);
+    cursor: pointer;
+    border-radius: 6px;
+    transition: var(--transition);
+}
+
+.ng-fullscreen-btn:hover {
+    background: var(--primary-light);
+    color: #fff;
+    border-color: var(--primary-light);
+}
+
+.dnd-step-count {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--primary-light);
+    text-transform: none;
+    letter-spacing: 0;
+}
+
+/* ── Fullscreen Mode ───────────────────────────────────── */
+.dnd-workspace.fullscreen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 9999;
+    background: var(--bg-app);
+    padding: 10px;
+    box-sizing: border-box;
+}
+
+.dnd-workspace.fullscreen .node-graph-canvas {
+    height: 100%;
+    margin: 0;
+    border-radius: 8px;
+}
+
+.dnd-workspace.fullscreen .node-graph-viewport {
+    height: calc(100vh - 70px);
+}
+
+.dnd-workspace.fullscreen .ng-fullscreen-btn {
+    background: rgba(239, 68, 68, 0.15);
+    border-color: rgba(239, 68, 68, 0.3);
+    color: #ef4444;
+}
+
+.dnd-workspace.fullscreen .ng-fullscreen-btn:hover {
+    background: #ef4444;
+    color: #fff;
+    border-color: #ef4444;
+}
+
+.ng-sidebar-toggle {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 4px;
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: var(--transition);
+}
+
+.ng-sidebar-toggle:hover {
+    background: var(--bg-hover);
+    color: var(--primary-light);
+    border-color: var(--primary-light);
+}
+
+.ng-play-btn {
+    background: rgba(16, 185, 129, 0.15);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    color: #10b981;
+    padding: 4px 6px;
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: var(--transition);
+}
+
+.ng-play-btn:hover:not(:disabled) {
+    background: #10b981;
+    color: #fff;
+    border-color: #10b981;
+}
+
+.ng-play-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+    filter: grayscale(1);
+}
+
+.node-graph-toolbar-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.dnd-palette.collapsed {
+    width: 0;
+    opacity: 0;
+    margin-right: -16px;
+    padding: 0;
+    border: none;
+}
+
+/* ── Viewport with zoom ────────────────────────────────── */
+.node-graph-viewport {
+    flex: 1;
+    position: relative;
+    overflow: auto;
+    min-height: 400px;
+    background-image: radial-gradient(circle, var(--border) 1px, transparent 1px);
+    background-size: 20px 20px;
+    cursor: grab;
+    user-select: none;
+}
+
+.node-graph-viewport.panning {
+    cursor: grabbing;
+}
+
+.node-graph-inner {
+    position: absolute;
+    top: 0;
+    left: 0;
+    min-width: 100%;
+    min-height: 100%;
+    transform-origin: 0 0;
+    transition: transform 0.1s ease-out;
+    pointer-events: none; /* Pass events through to viewport unless hit on node/line */
+}
+
+.node-graph-svg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 1;
+}
+
+.node-graph-svg line,
+.node-graph-svg path {
+    pointer-events: stroke;
+    cursor: pointer;
+}
+
+.node-graph-nodes {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 2;
+    pointer-events: none; /* Let clicks pass through empty space to the SVG lines */
+}
+
+.node-graph-empty {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-dim);
+    font-size: 13px;
+    font-style: italic;
+    pointer-events: none;
+    z-index: 0;
+}
+
+/* ── Graph Nodes ────────────────────────────────────────── */
+.graph-node {
+    position: absolute;
+    min-width: 220px;
+    max-width: 320px;
+    background: var(--bg-surface);
+    border: 2px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+    cursor: move;
+    user-select: none;
+    z-index: 10;
+    transition: box-shadow 0.15s ease, border-color 0.15s ease;
+    pointer-events: auto; /* Ensure nodes are still interactive */
+}
+
+.graph-node:hover {
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.18);
+    z-index: 20;
+}
+
+.graph-node.selected {
+    border-color: var(--primary-light);
+    box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.2), 0 4px 20px rgba(0, 0, 0, 0.18);
+}
+
+.graph-node-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    border-radius: 10px 10px 0 0;
+    cursor: move;
+}
+
+.graph-node-header-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.graph-node-type-icon {
+    width: 24px;
+    height: 24px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.graph-node-type-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.graph-node-delete {
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, 0.5);
+    cursor: pointer;
+    font-size: 16px;
+    padding: 2px 4px;
+    border-radius: 4px;
+    transition: var(--transition);
+    line-height: 1;
+}
+
+.graph-node-delete:hover {
+    color: #fff;
+    background: rgba(239, 68, 68, 0.4);
+}
+
+.graph-node-body {
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.graph-node-body input,
+.graph-node-body textarea {
+    width: 100%;
+    padding: 5px 8px;
+    font-size: 11px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+    font-family: var(--font);
+    outline: none;
+    transition: var(--transition);
+}
+
+.graph-node-body input:focus,
+.graph-node-body textarea:focus {
+    border-color: var(--border-focus);
+}
+
+.graph-node-body textarea {
+    resize: none;
+    min-height: 60px;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 11px;
+    line-height: 1.5;
+}
+
+.graph-node-body label {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    margin-bottom: -2px;
+}
+
+.graph-node-body .node-description {
+    font-size: 10px;
+    color: var(--text-dim);
+    font-style: italic;
+    margin: 0;
+}
+
+.graph-node-body select {
+    width: 100%;
+    padding: 5px 8px;
+    font-size: 11px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+    font-family: var(--font);
+    outline: none;
+    cursor: pointer;
+    transition: var(--transition);
+    appearance: auto;
+}
+
+.graph-node-body select:focus {
+    border-color: var(--border-focus);
+}
+
+.node-readonly-payload {
+    resize: none;
+    min-height: 40px !important;
+    max-height: 80px;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace !important;
+    font-size: 10px !important;
+    line-height: 1.4 !important;
+    background: var(--bg-surface) !important;
+    border-style: dashed !important;
+    opacity: 0.8;
+    color: var(--text-dim) !important;
+}
+
+.node-field-picker {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px 8px;
+    padding: 4px 0;
+}
+
+.node-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text);
+    cursor: pointer;
+    padding: 2px 4px;
+    border-radius: 3px;
+    transition: var(--transition);
+    text-transform: none !important;
+    letter-spacing: 0 !important;
+}
+
+.node-checkbox:hover {
+    background: var(--bg-hover);
+}
+
+.node-checkbox input[type="checkbox"] {
+    width: 14px;
+    height: 14px;
+    accent-color: var(--primary-light);
+    cursor: pointer;
+}
+
+/* ── Node Type Header Colors ───────────────────────────── */
+.graph-node-header.type-insertPayload {
+    background: linear-gradient(135deg, #4f46e5, #6366f1);
+    color: #e0e7ff;
+}
+
+.graph-node-header.type-createSubset {
+    background: linear-gradient(135deg, #d97706, #f59e0b);
+    color: #451a03;
+}
+
+.graph-node-header.type-apiCall {
+    background: linear-gradient(135deg, #059669, #10b981);
+    color: #d1fae5;
+}
+
+.graph-node-header.type-customFunction {
+    background: linear-gradient(135deg, #dc2626, #f97316);
+    color: #fff;
+}
+
+.graph-node-header.type-returnObject {
+    background: linear-gradient(135deg, #7c3aed, #8b5cf6);
+    color: #ede9fe;
+}
+
+/* ── Ports ──────────────────────────────────────────────── */
+.graph-node-ports {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 12px 8px;
+    position: relative;
+}
+
+.graph-port-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.graph-port {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: crosshair;
+    padding: 2px 0;
+}
+
+.graph-port-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 2px solid var(--border);
+    background: var(--bg-surface);
+    transition: var(--transition);
+    flex-shrink: 0;
+}
+
+.graph-port:hover .graph-port-dot {
+    border-color: var(--primary-light);
+    background: var(--primary-light);
+    box-shadow: 0 0 6px rgba(124, 58, 237, 0.5);
+}
+
+.graph-port.connecting .graph-port-dot {
+    border-color: var(--success);
+    background: var(--success);
+    box-shadow: 0 0 8px rgba(16, 185, 129, 0.6);
+    animation: portPulse 1s ease infinite;
+}
+
+@keyframes portPulse {
+    0%, 100% { box-shadow: 0 0 4px rgba(16, 185, 129, 0.4); }
+    50% { box-shadow: 0 0 12px rgba(16, 185, 129, 0.8); }
+}
+
+.graph-port-label {
+    font-size: 9px;
+    font-weight: 500;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+/* ── Connection Lines ──────────────────────────────────── */
+.node-connection {
+    stroke: var(--primary-light);
+    stroke-width: 2.5;
+    fill: none;
+    opacity: 0.6;
+    transition: all 0.2s ease;
+    pointer-events: stroke;
+}
+
+.node-connection:hover {
+    stroke-width: 4;
+    opacity: 0.9;
+    cursor: pointer;
+}
+
+.node-connection.selected {
+    stroke: #ff3e3e; /* Red pulse for deletion */
+    stroke-width: 4.5;
+    opacity: 1;
+    filter: drop-shadow(0 0 8px rgba(239, 68, 68, 0.6));
+}
+
+.node-connection-temp {
+    stroke: var(--primary-light);
+    stroke-width: 2;
+    fill: none;
+    opacity: 0.4;
+    stroke-dasharray: 6 4;
+}
+
+/* ── Connection delete hit area ────────────────────────── */
+.node-connection-hitarea {
+    stroke: transparent;
+    stroke-width: 12;
+    fill: none;
+    cursor: pointer;
+    pointer-events: stroke;
+}
+
 /* ── Chat Panel ─────────────────────────────────────────── */
 .chat-panel {
     position: fixed;
@@ -1091,3 +1783,27 @@ select.form-input {
     background: var(--border);
     border-radius: 3px;
 }
+
+.help-chat-window {
+    display: flex;
+    flex-direction: column;
+    z-index: 200;
+    transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 0.3s ease;
+    transform-origin: bottom right;
+}
+
+.help-chat-window.hidden {
+    opacity: 0;
+    transform: scale(0.9) translateY(20px);
+    pointer-events: none;
+}
+
+#help-chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}

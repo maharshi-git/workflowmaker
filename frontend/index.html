@@ -354,6 +354,127 @@
                     </div>
                 </div>
             </div>
+
+            <!-- ── Function — Drag and Drop ── -->
+            <div class="card collapsible" style="margin-top:16px;">
+                <div class="card-header-row" onclick="toggleCollapse(this)">
+                    <h3><span class="chevron">▾</span> Function — Drag and Drop</h3>
+                    <div class="btn-row" onclick="event.stopPropagation()">
+                        <button class="btn btn-outline btn-sm" onclick="clearDnDWorkflow()">Clear All</button>
+                        <button class="btn btn-primary btn-sm" onclick="generateDnDCode()">Generate Code</button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="dnd-workspace" id="dnd-workspace">
+                        <!-- Palette (source blocks) -->
+                        <div class="dnd-palette" id="dnd-palette">
+                            <div class="dnd-palette-title">Blocks</div>
+                            <div class="dnd-block-source" draggable="true" data-block-type="insertPayload">
+                                <div class="dnd-block-icon dnd-icon-payload">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                                </div>
+                                <div class="dnd-block-info">
+                                    <div class="dnd-block-name">Insert Sample Payload</div>
+                                    <div class="dnd-block-desc">Paste JSON input data</div>
+                                </div>
+                            </div>
+                            <div class="dnd-block-source" draggable="true" data-block-type="createSubset">
+                                <div class="dnd-block-icon dnd-icon-subset">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                                </div>
+                                <div class="dnd-block-info">
+                                    <div class="dnd-block-name">Create Payload Subset</div>
+                                    <div class="dnd-block-desc">Extract fields from payload</div>
+                                </div>
+                            </div>
+                            <div class="dnd-block-source" draggable="true" data-block-type="apiCall">
+                                <div class="dnd-block-icon dnd-icon-api">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                                </div>
+                                <div class="dnd-block-info">
+                                    <div class="dnd-block-name">API Call</div>
+                                    <div class="dnd-block-desc">Service Name + EntitySet</div>
+                                </div>
+                            </div>
+                            <div class="dnd-block-source" draggable="true" data-block-type="customFunction">
+                                <div class="dnd-block-icon dnd-icon-func">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 18l6-6-6-6"/><path d="M8 6l-6 6 6 6"/></svg>
+                                </div>
+                                <div class="dnd-block-info">
+                                    <div class="dnd-block-name">Custom Function</div>
+                                    <div class="dnd-block-desc">Custom code block</div>
+                                </div>
+                            </div>
+                            <div class="dnd-block-source" draggable="true" data-block-type="returnObject">
+                                <div class="dnd-block-icon dnd-icon-return">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 10 4 15 9 20"/><path d="M20 4v7a4 4 0 01-4 4H4"/></svg>
+                                </div>
+                                <div class="dnd-block-info">
+                                    <div class="dnd-block-name">Return Object</div>
+                                    <div class="dnd-block-desc">Return the result</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Node Graph Canvas -->
+                        <div class="node-graph-canvas" id="node-graph-canvas">
+                            <div class="node-graph-toolbar">
+                                <div class="node-graph-toolbar-left">
+                                    <button class="ng-sidebar-toggle" onclick="toggleDndPalette()" title="Toggle Blocks Sidebar">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+                                    </button>
+                                    <span>Node Graph</span>
+                                </div>
+                                <div class="node-graph-toolbar-right">
+                                    <div class="ng-zoom-controls">
+                                        <button class="ng-zoom-btn" onclick="ngZoom(-0.1)" title="Zoom Out">−</button>
+                                        <span class="ng-zoom-label" id="ng-zoom-label">100%</span>
+                                        <button class="ng-zoom-btn" onclick="ngZoom(0.1)" title="Zoom In">+</button>
+                                        <button class="ng-zoom-btn" onclick="ngZoomFit()" title="Fit to View">⊡</button>
+                                    </div>
+                                    <span class="dnd-step-count" id="dnd-step-count">0 nodes</span>
+                                    <button class="ng-play-btn" onclick="executeWorkflowTest()" id="ng-play-btn" title="Execute Workflow (Test Mode)" disabled>
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M5 3l14 9-14 9V3z"/></svg>
+                                    </button>
+                                    <button class="ng-fullscreen-btn" onclick="toggleNodeGraphFullscreen()" id="ng-fullscreen-btn" title="Toggle Fullscreen">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 00-2 2v3"/><path d="M21 8V5a2 2 0 00-2-2h-3"/><path d="M3 16v3a2 2 0 002 2h3"/><path d="M16 21h3a2 2 0 002-2v-3"/></svg>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="node-graph-viewport" id="node-graph-viewport">
+                                <div class="node-graph-inner" id="node-graph-inner">
+                                    <svg class="node-graph-svg" id="node-graph-svg"></svg>
+                                    <div class="node-graph-nodes" id="node-graph-nodes">
+                                        <!-- Nodes rendered dynamically -->
+                                    </div>
+                                </div>
+                                <div class="node-graph-empty" id="node-graph-empty">
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+                                    <span>Drag blocks here to build your workflow graph</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Generated code preview -->
+                    <div id="dnd-code-output" style="margin-top: 16px; display: none;">
+                        <label style="font-size: 13px; font-weight: 600; margin-bottom: 8px; display: block;">Generated Code from Workflow</label>
+                        <textarea class="form-textarea code-editor" id="dnd-code-preview" rows="12" spellcheck="false" readonly></textarea>
+                    </div>
+
+                    <!-- Full Configuration JSON -->
+                    <div id="dnd-config-output" style="margin-top: 16px; display: none;">
+                        <label style="font-size: 13px; font-weight: 600; margin-bottom: 8px; display: block;">Configuration Flow Details (JSON)</label>
+                        <textarea class="form-textarea code-editor" id="dnd-config-preview" rows="12" spellcheck="false" readonly></textarea>
+                    </div>
+
+                    <!-- Test Execution Results -->
+                    <div id="dnd-test-output" style="margin-top: 16px; display: none;">
+                        <label style="font-size: 13px; font-weight: 600; margin-bottom: 8px; display: block; color: var(--success-light);">Execution Response (Test Mode)</label>
+                        <textarea class="form-textarea code-editor" id="dnd-test-preview" rows="12" spellcheck="false" readonly style="border-color: var(--success); background: rgba(16, 185, 129, 0.05);"></textarea>
+                    </div>
+                </div>
+            </div>
         </div>
     </main>
 
@@ -376,22 +497,6 @@
 
     <script src="parser.js?v=2"></script>
     <script src="app.js?v=4"></script>
-</body>
-
-</html>
-</div>
-<div id="chat-messages"></div>
-<div class="chat-input-area">
-    <input type="text" id="chat-input" placeholder="Type a message..." onkeydown="if(event.key==='Enter')sendChat()">
-    <button class="btn btn-primary btn-sm" onclick="sendChat()">Send</button>
-</div>
-</div>
-
-<!-- Toast -->
-<div id="toast" class="toast hidden"></div>
-
-<script src="parser.js?v=2"></script>
-<script src="app.js?v=4"></script>
 </body>
 
 </html>

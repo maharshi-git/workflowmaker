@@ -128,10 +128,10 @@
                     },
                     "active": true,
                     "defaultReportView": true,
-                    "title": "sdfsdf",
-                    "knowledge": "sdgdfgd",
-                    "appLink": "fghfgh",
-                    "staticInstruction": "fghfgh",
+                    "title": "",
+                    "knowledge": "",
+                    "appLink": "",
+                    "staticInstruction": "",
                     "operationType": "CRUD",
                     "operationSubtype": "READ",
                     "apiCalls": [
@@ -139,6 +139,182 @@
                             "label": "dfdgd",
                             "serviceName": "fgdfg",
                             "entitySetName": "dfgdfgdg"
+                        }
+                    ],
+                    "graphNodes": [
+                        {
+                            "id": "nmn057iuqr4zc",
+                            "type": "insertPayload",
+                            "x": 51,
+                            "y": 290.375,
+                            "payload": "{\n}"
+                        },
+                        {
+                            "id": "nmn057kqn06un",
+                            "type": "apiCall",
+                            "x": 781.9761904761905,
+                            "y": 43.61309523809524,
+                            "serviceName": "TEST",
+                            "entitySet": "TEST",
+                            "crudType": "READ",
+                            "oDataType": "Entity",
+                            "apiType": "oData",
+                            "expands": [
+                                {
+                                    "id": "nmn0dwqj2ua10",
+                                    "name": "etst2",
+                                    "expands": [
+                                        {
+                                            "id": "nmn0dwx2fo6e1",
+                                            "name": "test66",
+                                            "expands": [
+                                                {
+                                                    "id": "nmn0dwy9ze3xp",
+                                                    "name": "yytrtrty",
+                                                    "expands": []
+                                                }
+                                            ]
+                                        }
+                                    ]
+                                },
+                                {
+                                    "id": "nmn0dwqj2udn1",
+                                    "name": "test3",
+                                    "expands": []
+                                }
+                            ]
+                        },
+                        {
+                            "id": "nmn057nn2scyn",
+                            "type": "returnObject",
+                            "x": 1602.5186335403728,
+                            "y": 290.0333850931677,
+                            "returnType": "default"
+                        },
+                        {
+                            "id": "nmn0a4amurp82",
+                            "type": "createSubset",
+                            "x": 362,
+                            "y": 61,
+                            "fields": "",
+                            "inputPayloadPreview": ""
+                        },
+                        {
+                            "id": "nmn0a4x1tcmut",
+                            "type": "createSubset",
+                            "x": 346,
+                            "y": 513,
+                            "fields": "",
+                            "inputPayloadPreview": ""
+                        },
+                        {
+                            "id": "nmn0a5486qi2b",
+                            "type": "apiCall",
+                            "x": 996.5185185185184,
+                            "y": 555.4814814814815,
+                            "serviceName": "",
+                            "entitySet": "",
+                            "crudType": "READ",
+                            "oDataType": "Function Call",
+                            "apiType": "oData",
+                            "expands": []
+                        },
+                        {
+                            "id": "nmn0e6e13ge8v",
+                            "type": "customFunction",
+                            "x": 1364.9999999999998,
+                            "y": 290.2380952380952,
+                            "functionBody": "return {\n\"label1\": INPUT1,\n\"label2\":  INPUT2\n}",
+                            "_inputCount": 2
+                        }
+                    ],
+                    "graphEdges": [
+                        {
+                            "from": "nmn057iuqr4zc",
+                            "to": "nmn0a4amurp82"
+                        },
+                        {
+                            "from": "nmn0a4amurp82",
+                            "to": "nmn057kqn06un"
+                        },
+                        {
+                            "from": "nmn057iuqr4zc",
+                            "to": "nmn0a4x1tcmut"
+                        },
+                        {
+                            "from": "nmn0a4x1tcmut",
+                            "to": "nmn0a5486qi2b"
+                        },
+                        {
+                            "from": "nmn057kqn06un",
+                            "to": "nmn0e6e13ge8v"
+                        },
+                        {
+                            "from": "nmn0a5486qi2b",
+                            "to": "nmn0e6e13ge8v"
+                        }
+                    ]
+                },
+                {
+                    "toolName": "testtool2",
+                    "toolDefinition": "",
+                    "formToBeSent": {},
+                    "operationType": "",
+                    "operationSubtype": "",
+                    "active": false,
+                    "defaultReportView": false,
+                    "title": "",
+                    "knowledge": "",
+                    "appLink": "",
+                    "staticInstruction": "",
+                    "apiCalls": [],
+                    "graphNodes": [
+                        {
+                            "id": "nmn0eilgiijxh",
+                            "type": "insertPayload",
+                            "x": 4.5,
+                            "y": 190.375,
+                            "payload": "{\n\"test\": \"test4\",\n\"test2\": \"test\",\n\"test3\": \"test\"\n}"
+                        },
+                        {
+                            "id": "nmn0eiov8uz97",
+                            "type": "returnObject",
+                            "x": 1118.3146453089246,
+                            "y": 172.97454233409616,
+                            "returnType": "default",
+                            "returnLabels": [
+                                "test"
+                            ]
+                        },
+                        {
+                            "id": "nmn0fcvx9spmf",
+                            "type": "createSubset",
+                            "x": 393.1498008305788,
+                            "y": 177.2900775489448,
+                            "fields": "test, test2, test3",
+                            "inputPayloadPreview": ""
+                        },
+                        {
+                            "id": "nmn0j3ehey4ax",
+                            "type": "customFunction",
+                            "x": 791.0869565217391,
+                            "y": 210.21739130434779,
+                            "functionBody": "async function(input1) {\n    return {\"functionCall\": \"test\"};\n}",
+                            "_inputCount": 1
+                        }
+                    ],
+                    "graphEdges": [
+                        {
+                            "from": "nmn0eilgiijxh",
+                            "to": "nmn0fcvx9spmf"
+                        },
+                        {
+                            "from": "nmn0fcvx9spmf",
+                            "to": "nmn0j3ehey4ax"
+                        },
+                        {
+                            "from": "nmn0j3ehey4ax",
+                            "to": "nmn0eiov8uz97"
                         }
                     ]
                 }
