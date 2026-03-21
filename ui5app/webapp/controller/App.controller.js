@@ -39,6 +39,8 @@ sap.ui.define([
                 this._onReadTool(oEvent.data.toolName, oEvent.source);
             } else if (oEvent.data && oEvent.data.action === "executeWorkflow") {
                 this._onExecuteWorkflow(oEvent.data, oEvent.source);
+            } else if (oEvent.data && oEvent.data.action === "executeIsolatedApiTest") {
+                this._onExecuteIsolatedApiTest(oEvent.data, oEvent.source);
             }
         },
 
@@ -235,27 +237,58 @@ sap.ui.define([
 
         _onExecuteWorkflow: function (oData, oSourceWindow) {
             var oModel = this.getView().getModel();
-            if (!oModel || !oModel.read) { // Using standard check from _onReadTool
+            if (!oModel || !oModel.create) {
                 oModel = new sap.ui.model.odata.v2.ODataModel("/odata/v2/device/");
             }
 
             var oPayload = {
                 toolName: oData.toolName,
                 testMode: !!oData.testMode,
-                inputPayload: oData.inputPayload || ""
+                inputPayload: oData.inputPayload
             };
 
             sap.m.MessageToast.show("Executing workflow: " + oData.toolName);
 
             oModel.create("/ExecuteWorkflow", oPayload, {
-                success: function (oResp) {
+                success: function (oResult) {
                     oSourceWindow.postMessage({
-                        action: "workflowExecuted",
-                        response: oResp.outputResponse
-                    }, "*");
+                        action: 'workflowExecuted',
+                        response: oResult.outputResponse
+                    }, '*');
                 },
                 error: function (oErr) {
-                    console.error("Workflow execution failed", oErr);
+                    console.error("Error executing workflow", oErr);
+                    sap.m.MessageToast.show("Execution failed");
+                }
+            });
+        },
+
+        _onExecuteIsolatedApiTest: function (oData, oSourceWindow) {
+            var oModel = this.getView().getModel();
+            if (!oModel || !oModel.create) {
+                oModel = new sap.ui.model.odata.v2.ODataModel("/odata/v2/device/");
+            }
+
+            // Payloads for the new TestAPICall entity
+            var oPayload = {
+                toolName: oData.toolName,
+                serviceName: oData.serviceName,
+                entitySet: oData.entitySet,
+                operationType: oData.operationType,
+                apiType: oData.apiType,
+                inputPayload: oData.inputPayload,
+                expands: oData.expands
+            };
+
+            oModel.create("/TestAPICall", oPayload, {
+                success: function (oResult) {
+                    oSourceWindow.postMessage({
+                        action: 'apiTestExecuted',
+                        response: oResult.outputResponse
+                    }, '*');
+                },
+                error: function (oErr) {
+                    console.error("Error executing isolated API test", oErr);
                     sap.m.MessageToast.show("Execution failed");
                 }
             });

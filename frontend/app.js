@@ -2,6 +2,178 @@
    Workflow Maker — Agent & Tool Configuration Editor
    ═══════════════════════════════════════════════════════════ */
 
+let _currentTestNodeId = null;
+let _currentTestExpands = [];
+
+function openTestApiModal(nodeId) {
+    const node = state.graphNodes.find(n => n.id === nodeId);
+    if (!node) return;
+    
+    _currentTestNodeId = nodeId;
+    const modal = document.getElementById('test-api-modal');
+    modal.classList.remove('hidden');
+    
+    // Auto-populate
+    document.getElementById('test-api-service').value = node.serviceName || '';
+    document.getElementById('test-api-entity').value = node.entitySet || '';
+    document.getElementById('test-api-op').value = node.crudType || 'READ';
+    document.getElementById('test-api-style').value = node.apiType || 'oData';
+    
+    // Payload - find any connected Insert Payload
+    const edge = state.graphEdges.find(e => e.to === nodeId);
+    if (edge) {
+        const fromNode = state.graphNodes.find(n => n.id === edge.from);
+        if (fromNode && fromNode.type === 'insertPayload') {
+            document.getElementById('test-api-payload').value = fromNode.payload || '';
+        } else {
+            document.getElementById('test-api-payload').value = '{\n}';
+        }
+    } else {
+        document.getElementById('test-api-payload').value = '{\n}';
+    }
+
+    // Expands - copy tree
+    _currentTestExpands = JSON.parse(JSON.stringify(node.expands || []));
+    renderTestApiExpands();
+
+    // Reset result
+    document.getElementById('test-api-result-container').style.display = 'none';
+    document.getElementById('test-api-result').value = '';
+    
+    validateTestApi();
+}
+
+function renderTestApiExpands() {
+    const container = document.getElementById('test-api-expands-container');
+    if (!container) return;
+    
+    const renderTree = (list, level = 0) => {
+        if (!list || list.length === 0) return '';
+        return list.map(exp => `
+            <div class="expand-entry" style="margin-left: ${level * 12}px; margin-top: 4px;">
+                <div style="display:flex; gap:3px; align-items:center;">
+                    <input placeholder="Property" value="${escHtml(exp.name)}"
+                           onchange="updateTestExpandProp('${exp.id}', this.value)"
+                           style="flex:1; font-size:11px; padding:3px 6px; border-radius:4px; height:24px; border:1px solid var(--border); background:var(--bg-elevated); color:var(--text);">
+                    <button onclick="addTestExpandChild('${exp.id}')" 
+                            title="Add child expand"
+                            style="border:none; background:none; color:var(--primary-light); cursor:pointer; font-weight:bold; font-size:14px;">+</button>
+                    <button onclick="removeTestExpandById('${exp.id}')" 
+                            title="Remove"
+                            style="border:none; background:none; color:var(--danger); cursor:pointer; font-size:14px;">&times;</button>
+                </div>
+                ${renderTree(exp.expands, level + 1)}
+            </div>
+        `).join('');
+    };
+
+    container.innerHTML = `
+        ${renderTree(_currentTestExpands)}
+        <button onclick="addTestExpand()" style="width:100%; padding:6px; font-size:11px; border:1px dashed var(--border); background:none; color:var(--text-dim); border-radius:4px; cursor:pointer; margin-top:8px;">
+            + Add Root Navigation
+        </button>
+    `;
+}
+
+function addTestExpand() {
+    _currentTestExpands.push({ id: _uid(), name: '', expands: [] });
+    renderTestApiExpands();
+}
+
+function addTestExpandChild(id) {
+    const find = (list) => {
+        for (let item of list) {
+            if (item.id === id) {
+                if (!item.expands) item.expands = [];
+                item.expands.push({ id: _uid(), name: '', expands: [] });
+                return true;
+            }
+            if (find(item.expands || [])) return true;
+        }
+        return false;
+    };
+    find(_currentTestExpands);
+    renderTestApiExpands();
+}
+
+function updateTestExpandProp(id, val) {
+    const find = (list) => {
+        for (let item of list) {
+            if (item.id === id) {
+                item.name = val;
+                return true;
+            }
+            if (find(item.expands || [])) return true;
+        }
+        return false;
+    };
+    find(_currentTestExpands);
+}
+
+function removeTestExpandById(id) {
+    const remove = (list) => {
+        for (let i = 0; i < list.length; i++) {
+            if (list[i].id === id) {
+                list.splice(i, 1);
+                return true;
+            }
+            if (remove(list[i].expands || [])) return true;
+        }
+        return false;
+    };
+    remove(_currentTestExpands);
+    renderTestApiExpands();
+}
+
+function closeTestApiModal() {
+    document.getElementById('test-api-modal').classList.add('hidden');
+    _currentTestNodeId = null;
+}
+
+function validateTestApi() {
+    const service = document.getElementById('test-api-service').value.trim();
+    const entity = document.getElementById('test-api-entity').value.trim();
+    const playBtn = document.getElementById('btn-test-api-play');
+    
+    playBtn.disabled = !(service && entity);
+}
+
+function runIsolatedApiTest() {
+    if (state.currentAgent === null || state.currentTool === null) return;
+    const tool = state.agents[state.currentAgent].tools[state.currentTool];
+
+    // Flatten logic for test execution
+    function flatten(list, prefix = '') {
+        let results = [];
+        (list || []).forEach(item => {
+            if (item.name && item.name.trim()) {
+                const path = prefix ? `${prefix}/${item.name.trim()}` : item.name.trim();
+                results.push(path);
+                if (item.expands && item.expands.length > 0) {
+                    results = results.concat(flatten(item.expands, path));
+                }
+            }
+        });
+        return results;
+    }
+    const expandPaths = flatten(_currentTestExpands);
+
+    const data = {
+        toolName: tool.toolName,
+        serviceName: document.getElementById('test-api-service').value,
+        entitySet: document.getElementById('test-api-entity').value,
+        operationType: document.getElementById('test-api-op').value,
+        apiType: document.getElementById('test-api-style').value,
+        inputPayload: document.getElementById('test-api-payload').value,
+        expands: expandPaths.length > 0 ? JSON.stringify(expandPaths) : ''
+    };
+
+    window.parent.postMessage({
+        action: 'executeIsolatedApiTest',
+        ...data
+    }, '*');
+}
+
 // ── Toggle Visibility — Advanced Execution ────────────
 function toggleAdvancedCodeVisibility() {
     const isAdvanced = document.getElementById('det-tool-advanced-code').checked;
@@ -194,6 +366,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                 previewArea.scrollIntoView({ behavior: 'smooth', block: 'end' });
             }
             showToast('Workflow executed successfully', 'success');
+        } else if (e.data && e.data.action === 'apiTestExecuted') {
+            const resultArea = document.getElementById('test-api-result');
+            const container = document.getElementById('test-api-result-container');
+            if (resultArea && container) {
+                container.style.display = 'block';
+                resultArea.value = e.data.response || '// No response received';
+                autoGrow(resultArea);
+            }
+            showToast('API Test completed', 'success');
         }
     });
 
@@ -1946,7 +2127,15 @@ function renderNodeGraph() {
             }
 
             bodyHtml = `
-                <label>API Style</label>
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <label>API Style</label>
+                    <button onclick="event.stopPropagation(); openTestApiModal('${node.id}')" 
+                            title="Quick Test"
+                            style="background:none; border:none; color:var(--success); cursor:pointer; display:flex; align-items:center; gap:4px; padding:2px; margin-top:-4px;">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M5 3l14 9-14 9V3z"/></svg>
+                        <span style="font-size:9px; font-weight:700; text-transform:uppercase;">Test</span>
+                    </button>
+                </div>
                 <select onchange="updateGraphNode('${node.id}','apiType',this.value); renderNodeGraph()" onclick="event.stopPropagation()" onmousedown="event.stopPropagation()">
                     ${apiTypeOpts}
                 </select>
