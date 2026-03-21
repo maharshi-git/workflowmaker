@@ -2,6 +2,48 @@
    Workflow Maker — Agent & Tool Configuration Editor
    ═══════════════════════════════════════════════════════════ */
 
+// ── Toggle Visibility — Advanced Execution ────────────
+function toggleAdvancedCodeVisibility() {
+    const isAdvanced = document.getElementById('det-tool-advanced-code').checked;
+    const cardSimple = document.getElementById('card-function-simple');
+    const cardDnd = document.getElementById('card-function-dnd');
+    
+    // IF TRUE: HIDE BOTH. IF FALSE: SHOW BOTH (Standard behavior)
+    if (cardSimple) cardSimple.style.display = isAdvanced ? 'none' : 'block';
+    if (cardDnd) cardDnd.style.display = isAdvanced ? 'none' : 'block';
+    
+    // Save to tool state
+    if (state.currentAgent !== null && state.currentTool !== null) {
+        state.agents[state.currentAgent].tools[state.currentTool].advancedCodeExec = isAdvanced;
+    }
+}
+
+// ── Default Workflow ─────────────────────────────
+function applyDefaultWorkflow() {
+    state.graphNodes = [];
+    state.graphEdges = [];
+    
+    const id1 = _uid();
+    const id2 = _uid();
+    const id3 = _uid();
+    
+    state.graphNodes.push({
+        id: id1, type: 'insertPayload', x: 50, y: 150, payload: '{\n  "id": 1\n}'
+    });
+    state.graphNodes.push({
+        id: id2, type: 'apiCall', x: 300, y: 150, 
+        serviceName: '', entitySet: '', crudType: 'READ', apiType: 'oData', oDataType: 'Entity', expands: []
+    });
+    state.graphNodes.push({
+        id: id3, type: 'returnObject', x: 600, y: 150, returnType: 'default', returnLabels: []
+    });
+    
+    state.graphEdges.push({ from: id1, to: id2 });
+    state.graphEdges.push({ from: id2, to: id3 });
+    
+    renderNodeGraph();
+}
+
 // ── State ──────────────────────────────────────────────────
 const state = {
     agents: [],
@@ -73,6 +115,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 tool.operationType = i.operationType;
                 tool.operationSubtype = i.operationSubtype;
                 tool.defaultReportView = i.defaultReportView;
+                tool.advancedCodeExec = i.advancedCodeExec; // Store advancedCodeExec
 
                 // Update UI properties
                 document.getElementById('det-tool-active').checked = !!tool.active;
@@ -82,8 +125,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                 document.getElementById('det-tool-applink').value = tool.appLink || '';
                 document.getElementById('det-tool-static-instruction').value = tool.staticInstruction || '';
                 document.getElementById('det-tool-operation-type').value = tool.operationType || '';
+                document.getElementById('det-tool-advanced-code').checked = !!tool.advancedCodeExec; // Set checkbox
                 updateOperationSubtypeOptions(tool.operationType || '');
                 document.getElementById('det-tool-operation-subtype').value = tool.operationSubtype || '';
+                toggleAdvancedCodeVisibility(); // Update visibility based on loaded value
 
                 showToast(`Loaded details from CAP for ${tool.toolName}`, 'success');
             } else {
@@ -116,7 +161,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                             if (!node.apiType) node.apiType = 'oData';
                             if (!node.oDataType) node.oDataType = 'Entity';
                             if (!node.expands) node.expands = [];
-                            // Convert legacy flat strings to recursive tree objects
                             node.expands = node.expands.map(e => {
                                 if (typeof e === 'string') return { id: _uid(), name: e, expands: [] };
                                 return e;
@@ -125,8 +169,20 @@ document.addEventListener('DOMContentLoaded', async () => {
                         return node;
                     });
                     state.graphEdges = cfg.edges || [];
-                    renderNodeGraph();
-                } catch (e) { console.error("Error parsing configFlow", e); }
+                    
+                    // IF NO NODES EXIST, APPLY DEFAULT FLOW
+                    if (state.graphNodes.length === 0) {
+                        applyDefaultWorkflow();
+                    } else {
+                        renderNodeGraph();
+                    }
+                } catch (e) { 
+                    console.error("Error parsing configFlow", e); 
+                    applyDefaultWorkflow(); 
+                }
+            } else {
+                // Completely new or no config, apply default
+                applyDefaultWorkflow();
             }
         } else if (e.data && e.data.action === 'workflowExecuted') {
             const outputDiv = document.getElementById('dnd-test-output');
@@ -429,6 +485,8 @@ function showToolDetail(agentIdx, toolIdx) {
     document.getElementById('det-tool-static-instruction').value = '';
     document.getElementById('det-tool-operation-type').value = '';
     document.getElementById('det-tool-operation-subtype').value = '';
+    document.getElementById('det-tool-advanced-code').checked = false;
+    toggleAdvancedCodeVisibility();
 
     state.sampleFormDef = [];
     renderFormEditor();
@@ -451,6 +509,11 @@ function showToolDetail(agentIdx, toolIdx) {
     document.getElementById('det-tool-applink').onchange = function () { tool.appLink = this.value; publishToUI5(); };
     document.getElementById('det-tool-static-instruction').onchange = function () { tool.staticInstruction = this.value; publishToUI5(); };
     document.getElementById('det-tool-operation-subtype').onchange = function () { tool.operationSubtype = this.value; publishToUI5(); };
+    document.getElementById('det-tool-advanced-code').onchange = function () { 
+        tool.advancedCodeExec = this.checked; 
+        toggleAdvancedCodeVisibility();
+        publishToUI5(); 
+    };
     document.getElementById('form-json-editor').onchange = function () {
         try {
             tool.formToBeSent = JSON.parse(this.value);
@@ -2384,6 +2447,7 @@ function syncCurrentEdits() {
             if (tsi) tool.staticInstruction = tsi.value;
             if (tot) tool.operationType = tot.value;
             if (tost) tool.operationSubtype = tost.value;
+            if (tadv) tool.advancedCodeExec = tadv.checked;
             if (fj) { try { tool.formToBeSent = JSON.parse(fj.value); } catch { } }
             tool.apiCalls = state.apiCalls || [];
             tool.graphNodes = state.graphNodes || [];

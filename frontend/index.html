@@ -150,7 +150,7 @@
                         <label>Tool Definition</label>
                         <textarea class="form-textarea" id="det-tool-def" rows="3"></textarea>
                     </div>
-                    <div class="form-group" style="display: flex; gap: 16px;">
+                    <div class="form-group" style="display: flex; gap: 16px; flex-wrap: wrap;">
                         <label style="display: flex; align-items: center; gap: 6px;">
                             <input type="checkbox" id="det-tool-active"
                                 style="width:16px; height:16px; accent-color: var(--primary);"> Active
@@ -158,6 +158,10 @@
                         <label style="display: flex; align-items: center; gap: 6px;">
                             <input type="checkbox" id="det-tool-default-report-view"
                                 style="width:16px; height:16px; accent-color: var(--primary);"> Default Report View
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 6px;">
+                            <input type="checkbox" id="det-tool-advanced-code" onchange="toggleAdvancedCodeVisibility()"
+                                style="width:16px; height:16px; accent-color: var(--primary);"> Execute Advanced Function?
                         </label>
                     </div>
                     <div class="form-group">
@@ -274,7 +278,7 @@
             </div>
 
             <!-- ── Function ── -->
-            <div class="card collapsible" style="margin-top:16px;">
+            <div class="card collapsible" style="margin-top:16px;" id="card-function-simple">
                 <div class="card-header-row" onclick="toggleCollapse(this)">
                     <h3><span class="chevron">▾</span> Function</h3>
                     <div class="btn-row" onclick="event.stopPropagation()">
@@ -356,7 +360,7 @@
             </div>
 
             <!-- ── Function — Drag and Drop ── -->
-            <div class="card collapsible" style="margin-top:16px;">
+            <div class="card collapsible" style="margin-top:16px;" id="card-function-dnd">
                 <div class="card-header-row" onclick="toggleCollapse(this)">
                     <h3><span class="chevron">▾</span> Function — Drag and Drop</h3>
                     <div class="btn-row" onclick="event.stopPropagation()">
