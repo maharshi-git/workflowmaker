@@ -399,10 +399,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                 document.getElementById('det-tool-applink').value = tool.appLink || '';
                 document.getElementById('det-tool-static-instruction').value = tool.staticInstruction || '';
                 document.getElementById('det-tool-operation-type').value = tool.operationType || '';
-                document.getElementById('det-tool-advanced-code').checked = !!tool.advancedCodeExec; // Set checkbox
-                updateOperationSubtypeOptions(tool.operationType || '');
                 document.getElementById('det-tool-operation-subtype').value = tool.operationSubtype || '';
-                toggleAdvancedCodeVisibility(); // Update visibility based on loaded value
+                document.getElementById('det-tool-advanced-code').checked = !!tool.advancedCodeExec;
+
+                if (tool.operationType) {
+                    updateOperationSubtypeOptions(tool.operationType);
+                    document.getElementById('det-tool-operation-subtype').value = tool.operationSubtype || '';
+                }
+
+                toggleAdvancedCodeVisibility();
 
                 showToast(`Loaded details from CAP for ${tool.toolName}`, 'success');
             } else {
@@ -845,6 +850,15 @@ function updateOperationSubtypeOptions(type) {
         subtypeSelect.innerHTML = '<option value="">Not Applicable</option>';
         subtypeSelect.disabled = true;
     }
+}
+
+function toggleAdvancedCodeVisibility() {
+    const isAdvanced = document.getElementById('det-tool-advanced-code').checked;
+    const simpleCard = document.getElementById('card-function-simple');
+    const dndCard = document.getElementById('card-function-dnd');
+
+    if (simpleCard) simpleCard.style.display = isAdvanced ? 'none' : 'block';
+    if (dndCard) dndCard.style.display = isAdvanced ? 'none' : 'block';
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -1778,8 +1792,8 @@ function initNodeGraphListeners() {
 function checkPlayEnabled() {
     const btn = document.getElementById('ng-play-btn');
     if (!btn) return;
-    const hasInputNode = (state.graphNodes || []).some(n => n.type === 'insertPayload');
-    btn.disabled = !hasInputNode;
+    // Always enable play button for flexible live testing
+    btn.disabled = false;
 }
 
 function executeWorkflowTest() {
@@ -1789,12 +1803,9 @@ function executeWorkflowTest() {
     }
     const tool = state.agents[state.currentAgent].tools[state.currentTool];
     const inputNode = (state.graphNodes || []).find(n => n.type === 'insertPayload');
-    const inputPayload = inputNode ? inputNode.payload : '';
-
-    if (!inputPayload || !inputPayload.trim()) {
-        showToast('Input payload is mandatory for execution', 'warning');
-        return;
-    }
+    
+    // If no input node exists, we start with an empty object as the payload
+    const inputPayload = inputNode ? (inputNode.payload || '{}') : '{}';
 
     // Send message to UI5 wrapping app
     window.parent.postMessage({
@@ -2118,8 +2129,8 @@ function renderNodeGraph() {
     // Toggle Play Button
     const playBtn = document.getElementById('ng-play-btn');
     if (playBtn) {
-        const hasInput = nodes.some(n => n.type === 'insertPayload' && (n.payload || '').trim().length > 0);
-        playBtn.disabled = !hasInput;
+        // Always enabled for live testing per requirements
+        playBtn.disabled = false;
     };
 
     if (nodes.length === 0) {
@@ -2746,6 +2757,7 @@ function syncCurrentEdits() {
             if (tsi) tool.staticInstruction = tsi.value;
             if (tot) tool.operationType = tot.value;
             if (tost) tool.operationSubtype = tost.value;
+            const tadv = document.getElementById('det-tool-advanced-code');
             if (tadv) tool.advancedCodeExec = tadv.checked;
             if (fj) { try { tool.formToBeSent = JSON.parse(fj.value); } catch { } }
             tool.apiCalls = state.apiCalls || [];

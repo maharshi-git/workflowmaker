@@ -44,11 +44,8 @@ sap.ui.define([
             }
         },
 
-
         _onReadTool: function (sToolName, oSourceWindow) {
             var oModel = this.getView().getModel();
-
-            // Fallback if default model is not available or not V2
             if (!oModel || !oModel.read) {
                 oModel = new sap.ui.model.odata.v2.ODataModel("/odata/v2/device/");
             }
@@ -98,13 +95,8 @@ sap.ui.define([
         },
 
         datamanager: function (oTool, aSampleForm, sQueryCode, sConfigJson) {
-            // "the UI5 app will call the service of onbordeedevice via a v2 oModel.create call"
-            // Using the unnamed default model from manifest.json
             var oModel = this.getView().getModel();
-
             if (!oModel || !oModel.create) {
-                // Fallback / manual instantiation if default model is not available or not v2
-                console.warn("Default model not available or not V2, falling back to manual model creation.");
                 oModel = new sap.ui.model.odata.v2.ODataModel("/odata/v2/device/");
             }
 
@@ -117,7 +109,8 @@ sap.ui.define([
                 staticInstruction: oTool.staticInstruction || "",
                 operationType: oTool.operationType || "",
                 operationSubtype: oTool.operationSubtype || "",
-                defaultReportView: !!oTool.defaultReportView
+                defaultReportView: !!oTool.defaultReportView,
+                advancedCodeExec: !!oTool.advancedCodeExec
             };
 
             oModel.create("/IntentDefinition", oPayload, {
@@ -126,7 +119,6 @@ sap.ui.define([
                 },
                 error: function (oErr) {
                     console.error("Error saving tool " + oTool.toolName, oErr);
-                    sap.m.MessageToast.show("Error saving tool: " + oTool.toolName);
                 }
             });
 
@@ -182,8 +174,6 @@ sap.ui.define([
 
             var oIframe = document.getElementById("manageIframe");
             if (oIframe) {
-                // Completely bypass UI5 lifecycle to avoid iframe reloads.
-                // We target the iframe's container wrapper natively.
                 if (sKey === "manager") {
                     oIframe.parentElement.style.display = "block";
                     oIframe.parentElement.style.height = "100%";
@@ -196,7 +186,6 @@ sap.ui.define([
 
         onOpenWorkflowDialog: function () {
             var oView = this.getView();
-
             if (!this._pWorkflowDialog) {
                 this._pWorkflowDialog = Fragment.load({
                     id: oView.getId(),
@@ -209,19 +198,12 @@ sap.ui.define([
             }
             this._pWorkflowDialog.then(function (oDialog) {
                 oDialog.open();
-
-                // Wait slightly for iframe to render if first time, then sync Fiori theme
                 setTimeout(function () {
                     var oIframe = document.getElementById("manageIframe");
                     if (oIframe && oIframe.contentWindow) {
-                        // Check if current Fiori theme has 'dark' or 'light'
                         var sTheme = sap.ui.getCore().getConfiguration().getTheme();
                         var targetTheme = sTheme.toLowerCase().includes("dark") ? "dark" : "light";
-
-                        oIframe.contentWindow.postMessage({
-                            action: 'setTheme',
-                            theme: targetTheme
-                        }, "*");
+                        oIframe.contentWindow.postMessage({ action: 'setTheme', theme: targetTheme }, "*");
                     }
                 }, 300);
             });
@@ -237,9 +219,7 @@ sap.ui.define([
 
         _onExecuteWorkflow: function (oData, oSourceWindow) {
             var oModel = this.getView().getModel();
-            if (!oModel || !oModel.create) {
-                oModel = new sap.ui.model.odata.v2.ODataModel("/odata/v2/device/");
-            }
+            if (!oModel || !oModel.create) oModel = new sap.ui.model.odata.v2.ODataModel("/odata/v2/device/");
 
             var oPayload = {
                 toolName: oData.toolName,
@@ -251,25 +231,18 @@ sap.ui.define([
 
             oModel.create("/ExecuteWorkflow", oPayload, {
                 success: function (oResult) {
-                    oSourceWindow.postMessage({
-                        action: 'workflowExecuted',
-                        response: oResult.outputResponse
-                    }, '*');
+                    oSourceWindow.postMessage({ action: 'workflowExecuted', response: oResult.outputResponse }, '*');
                 },
                 error: function (oErr) {
                     console.error("Error executing workflow", oErr);
-                    sap.m.MessageToast.show("Execution failed");
                 }
             });
         },
 
         _onExecuteIsolatedApiTest: function (oData, oSourceWindow) {
             var oModel = this.getView().getModel();
-            if (!oModel || !oModel.create) {
-                oModel = new sap.ui.model.odata.v2.ODataModel("/odata/v2/device/");
-            }
+            if (!oModel || !oModel.create) oModel = new sap.ui.model.odata.v2.ODataModel("/odata/v2/device/");
 
-            // Payloads for the new TestAPICall entity
             var oPayload = {
                 toolName: oData.toolName,
                 serviceName: oData.serviceName,
@@ -282,14 +255,10 @@ sap.ui.define([
 
             oModel.create("/TestAPICall", oPayload, {
                 success: function (oResult) {
-                    oSourceWindow.postMessage({
-                        action: 'apiTestExecuted',
-                        response: oResult.outputResponse
-                    }, '*');
+                    oSourceWindow.postMessage({ action: 'apiTestExecuted', response: oResult.outputResponse }, '*');
                 },
                 error: function (oErr) {
                     console.error("Error executing isolated API test", oErr);
-                    sap.m.MessageToast.show("Execution failed");
                 }
             });
         }
