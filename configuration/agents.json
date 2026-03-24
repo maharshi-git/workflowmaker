@@ -322,7 +322,99 @@
                 {
                     "toolName": "test3",
                     "toolDefinition": "",
-                    "formToBeSent": {}
+                    "formToBeSent": {},
+                    "operationType": "CRUD",
+                    "operationSubtype": "READ",
+                    "active": false,
+                    "defaultReportView": false,
+                    "title": "",
+                    "knowledge": "",
+                    "appLink": "",
+                    "staticInstruction": "",
+                    "advancedCodeExec": false,
+                    "apiCalls": [],
+                    "graphNodes": [
+                        {
+                            "id": "nmn0ra3bplc05",
+                            "type": "insertPayload",
+                            "x": 3,
+                            "y": 110,
+                            "payload": "{\n  \"id\": 1, \"id2\": \"2\"\n}"
+                        },
+                        {
+                            "id": "nmn0ra3bp2205",
+                            "type": "returnObject",
+                            "x": 1500.2380952380952,
+                            "y": 209.33333333333331,
+                            "returnType": "multi",
+                            "returnLabels": [
+                                "",
+                                ""
+                            ]
+                        },
+                        {
+                            "id": "nmn0radxib12l",
+                            "type": "createSubset",
+                            "x": 549.8333333333333,
+                            "y": 79.9940476190476,
+                            "fields": "id",
+                            "inputPayloadPreview": ""
+                        },
+                        {
+                            "id": "nmn0rdaeigik4",
+                            "type": "createSubset",
+                            "x": 623.6904761904761,
+                            "y": 508.89880952380946,
+                            "fields": "id",
+                            "inputPayloadPreview": ""
+                        },
+                        {
+                            "id": "nmn0rjgc9a1rx",
+                            "type": "customFunction",
+                            "x": 1023.3333333333333,
+                            "y": 527.142857142857,
+                            "functionBody": "async function(input1) {\n    return [];\n}",
+                            "_inputCount": 1
+                        },
+                        {
+                            "id": "nmn0rjkh57iau",
+                            "type": "apiCall",
+                            "x": 953.0952380952381,
+                            "y": 0,
+                            "serviceName": "",
+                            "entitySet": "",
+                            "crudType": "READ",
+                            "apiType": "oData",
+                            "oDataType": "Entity",
+                            "expands": []
+                        }
+                    ],
+                    "graphEdges": [
+                        {
+                            "from": "nmn0ra3bplc05",
+                            "to": "nmn0rdaeigik4"
+                        },
+                        {
+                            "from": "nmn0ra3bplc05",
+                            "to": "nmn0radxib12l"
+                        },
+                        {
+                            "from": "nmn0radxib12l",
+                            "to": "nmn0rjkh57iau"
+                        },
+                        {
+                            "from": "nmn0rjkh57iau",
+                            "to": "nmn0ra3bp2205"
+                        },
+                        {
+                            "from": "nmn0rjgc9a1rx",
+                            "to": "nmn0ra3bp2205"
+                        },
+                        {
+                            "from": "nmn0rdaeigik4",
+                            "to": "nmn0rjgc9a1rx"
+                        }
+                    ]
                 }
             ]
         }
