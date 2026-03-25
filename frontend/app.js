@@ -544,9 +544,18 @@ function generateOrchPreview() {
         } else if (b.type === 'routing') {
             const header = (b.header || "you can choose any of these operations to be passed as destination. Please ask for clarification in case of confusion.").trim();
             desc += `${header}\n`;
-            const routes = b.routes || [{ targetAgent: b.targetAgent || '', condition: b.condition || '' }];
             routes.forEach(r => {
-                if (r.targetAgent.trim()) desc += `- ${r.targetAgent} - if ${r.condition || 'no specific condition'}\n`;
+                if (r.targetAgent.trim()) {
+                    const cond = (r.condition || 'no specific condition').trim();
+                    if (cond.includes('\n')) {
+                        desc += `- ${r.targetAgent} - if:\n`;
+                        cond.split('\n').forEach(line => {
+                            if (line.trim()) desc += `  - ${line.trim()}\n`;
+                        });
+                    } else {
+                        desc += `- ${r.targetAgent} - if ${cond}\n`;
+                    }
+                }
             });
             desc += `\n`;
         }
@@ -673,10 +682,10 @@ function renderOrchBlocks() {
                                             onchange="updateOrchRoute(${i}, ${ri}, 'targetAgent', this.value)">
                                     </div>
                                     <div style="flex:2;">
-                                        <label style="font-size:9px; opacity:0.7;">Condition</label>
-                                        <input class="form-input" style="font-size: 11px; height: 32px;"
-                                            placeholder="Condition..." value="${escHtml(r.condition)}"
-                                            onchange="updateOrchRoute(${i}, ${ri}, 'condition', this.value)">
+                                        <label style="font-size:9px; opacity:0.7;">Condition(s) - Supports New Lines</label>
+                                        <textarea class="form-textarea" style="font-size: 11px; height: 32px; min-height: 32px; padding: 4px 8px;"
+                                            placeholder="Condition..." 
+                                            onchange="updateOrchRoute(${i}, ${ri}, 'condition', this.value)">${escHtml(r.condition)}</textarea>
                                     </div>
                                     <button class="btn-delete" style="margin-top: 20px;" onclick="removeOrchRoute(${i}, ${ri})">&times;</button>
                                 </div>
