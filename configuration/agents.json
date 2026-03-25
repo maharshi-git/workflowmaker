@@ -118,7 +118,7 @@
         },
         {
             "agentName": "testagent",
-            "agentDefinition": "sdfsdfsdf",
+            "agentDefinition": "Instruction:\nsdfsdfsdf\n\nReturn the following fields:\n- prompt: <The QUestion asked>\n- answer: <for an answer based on what was asked>\n- readableAnswer: <an answer that can be read out>\n- filledForm: <Mandatory field. The tool will return a blank json. Filled form will contain that same json with the values filled with information provided by the user. Keep the values \"\" if user has not provided. the returned JSON must contain every field returned by the tool>\n- bigForm: Default set to true\n- hasUpload: Default set to false\n- masterEntity: \n- toolCalled: <The tool called. tool name should be exactly same>\n- buttons: <Array of objects with probable answers. Each object will have one property called text:<possible answer>>\n\nInstruction:\nDO NOT autofill any values. Keep them blank if not provided",
             "tools": [
                 {
                     "toolName": "testagenttool",
@@ -415,6 +415,62 @@
                             "to": "nmn0rjgc9a1rx"
                         }
                     ]
+                }
+            ],
+            "agentBlocks": [
+                {
+                    "_id": "nmn4ely7j6w2f",
+                    "type": "instruction",
+                    "label": "Instruction",
+                    "text": "sdfsdfsdf"
+                },
+                {
+                    "_id": "nmn4em0p9n9dr",
+                    "type": "returnFields",
+                    "fields": [
+                        {
+                            "name": "prompt",
+                            "description": "<The QUestion asked>"
+                        },
+                        {
+                            "name": "answer",
+                            "description": "<for an answer based on what was asked>"
+                        },
+                        {
+                            "name": "readableAnswer",
+                            "description": "<an answer that can be read out>"
+                        },
+                        {
+                            "name": "filledForm",
+                            "description": "<Mandatory field. The tool will return a blank json. Filled form will contain that same json with the values filled with information provided by the user. Keep the values \"\" if user has not provided. the returned JSON must contain every field returned by the tool>"
+                        },
+                        {
+                            "name": "bigForm",
+                            "description": "Default set to true"
+                        },
+                        {
+                            "name": "hasUpload",
+                            "description": "Default set to false"
+                        },
+                        {
+                            "name": "masterEntity",
+                            "description": ""
+                        },
+                        {
+                            "name": "toolCalled",
+                            "description": "<The tool called. tool name should be exactly same>"
+                        },
+                        {
+                            "name": "buttons",
+                            "description": "<Array of objects with probable answers. Each object will have one property called text:<possible answer>>"
+                        }
+                    ]
+                },
+                {
+                    "_id": "nmn4emwosv0kb",
+                    "type": "instruction",
+                    "label": "Instruction",
+                    "text": "DO NOT autofill any values. Keep them blank if not provided"
                 }
             ]
         }

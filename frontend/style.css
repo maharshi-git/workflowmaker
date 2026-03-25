@@ -1245,7 +1245,8 @@ select.form-input {
     min-height: 100%;
     transform-origin: 0 0;
     transition: transform 0.1s ease-out;
-    pointer-events: none; /* Pass events through to viewport unless hit on node/line */
+    pointer-events: none;
+    /* Pass events through to viewport unless hit on node/line */
 }
 
 .node-graph-svg {
@@ -1271,7 +1272,8 @@ select.form-input {
     width: 100%;
     height: 100%;
     z-index: 2;
-    pointer-events: none; /* Let clicks pass through empty space to the SVG lines */
+    pointer-events: none;
+    /* Let clicks pass through empty space to the SVG lines */
 }
 
 .node-graph-empty {
@@ -1303,7 +1305,8 @@ select.form-input {
     user-select: none;
     z-index: 10;
     transition: box-shadow 0.15s ease, border-color 0.15s ease;
-    pointer-events: auto; /* Ensure nodes are still interactive */
+    pointer-events: auto;
+    /* Ensure nodes are still interactive */
 }
 
 .graph-node:hover {
@@ -1552,8 +1555,15 @@ select.form-input {
 }
 
 @keyframes portPulse {
-    0%, 100% { box-shadow: 0 0 4px rgba(16, 185, 129, 0.4); }
-    50% { box-shadow: 0 0 12px rgba(16, 185, 129, 0.8); }
+
+    0%,
+    100% {
+        box-shadow: 0 0 4px rgba(16, 185, 129, 0.4);
+    }
+
+    50% {
+        box-shadow: 0 0 12px rgba(16, 185, 129, 0.8);
+    }
 }
 
 .graph-port-label {
@@ -1581,7 +1591,8 @@ select.form-input {
 }
 
 .node-connection.selected {
-    stroke: #ff3e3e; /* Red pulse for deletion */
+    stroke: #ff3e3e;
+    /* Red pulse for deletion */
     stroke-width: 4.5;
     opacity: 1;
     filter: drop-shadow(0 0 8px rgba(239, 68, 68, 0.6));
@@ -1789,7 +1800,7 @@ select.form-input {
     flex-direction: column;
     z-index: 200;
     transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1),
-    opacity 0.3s ease;
+        opacity 0.3s ease;
     transform-origin: bottom right;
 }
 
@@ -1871,4 +1882,3 @@ select.form-input {
 .modal-body {
     padding: 24px;
 }
-

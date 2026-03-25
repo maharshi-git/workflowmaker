@@ -135,6 +135,8 @@
                             <button class="btn btn-outline btn-sm" onclick="addAgentBlock('instruction')">+ Instruction</button>
                             <button class="btn btn-outline btn-sm" onclick="addAgentBlock('returnFields')">+ Return Fields</button>
                             <button class="btn btn-outline btn-sm" onclick="addAgentBlock('tag')">+ Tag Group</button>
+                            <button class="btn btn-outline btn-sm" onclick="addAgentBlock('toolMap')">+ Tool Map</button>
+                            <button class="btn btn-outline btn-sm" onclick="addAgentBlock('oneShot')">+ One-Shot</button>
                             <button class="btn btn-outline btn-sm" onclick="addAgentBlock('json')">+ JSON</button>
                         </div>
                     </div>
@@ -142,6 +144,10 @@
                     <div id="agent-blocks-container" style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px;">
                         <!-- Blocks Rendered Here -->
                     </div>
+                    
+                    <datalist id="tools-datalist">
+                        <!-- Populated dynamically based on current agent -->
+                    </datalist>
 
                     <label style="font-size: 11px; font-weight: 600; color: var(--text-muted); margin-bottom: 8px; display: block;">Generated Agent Definition (Read-Only Preview)</label>
                     <textarea class="form-textarea" id="det-agent-def" rows="3" readonly

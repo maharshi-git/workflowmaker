@@ -364,7 +364,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             // Fallback for legacy data
             state.orchestratorBlocks = [{ type: 'instruction', label: 'Instruction', text: orch.OrchestratorDescription }];
         }
-        
+
         const headerToggle = document.getElementById('orch-use-headers');
         if (headerToggle && orch && orch.useBlockHeaders !== undefined) {
             headerToggle.checked = !!orch.useBlockHeaders;
@@ -535,14 +535,20 @@ function generateOrchPreview() {
                 if (useHeaders) {
                     const tag = b.label.trim() || 'Instruction';
                     // Strip non-alphanumeric for tags just in case
-                    const cleanTag = tag.replace(/[^a-z0-0]/gi, ''); 
+                    const cleanTag = tag.replace(/[^a-z0-0]/gi, '');
                     desc += `<${cleanTag}>\n${cleanText}\n</${cleanTag}>\n\n`;
                 } else {
                     desc += `${b.label || 'Instruction'}:\n${cleanText}\n\n`;
                 }
             }
         } else if (b.type === 'routing') {
-            if (b.targetAgent.trim()) desc += `Route to ${b.targetAgent} if ${b.condition || 'no specific condition'}\n\n`;
+            const header = (b.header || "you can choose any of these operations to be passed as destination. Please ask for clarification in case of confusion.").trim();
+            desc += `${header}\n`;
+            const routes = b.routes || [{ targetAgent: b.targetAgent || '', condition: b.condition || '' }];
+            routes.forEach(r => {
+                if (r.targetAgent.trim()) desc += `- ${r.targetAgent} - if ${r.condition || 'no specific condition'}\n`;
+            });
+            desc += `\n`;
         }
     });
     const el = document.getElementById('orchestrator-def-input');
@@ -553,9 +559,14 @@ function addOrchBlock(type) {
     if (type === 'instruction') {
         state.orchestratorBlocks.push({ type: 'instruction', label: 'General Instruction', text: '' });
     } else {
-        state.orchestratorBlocks.push({ type: 'routing', targetAgent: '', condition: '' });
+        state.orchestratorBlocks.push({ 
+            type: 'routing', 
+            header: 'you can choose any of these operations to be passed as destination. Please ask for clarification in case of confusion.',
+            routes: [{ targetAgent: '', condition: '' }] 
+        });
     }
     renderOrchBlocks();
+    generateOrchPreview();
 }
 
 function removeOrchBlock(idx) {
@@ -566,6 +577,39 @@ function removeOrchBlock(idx) {
 
 function updateOrchBlock(idx, prop, val) {
     state.orchestratorBlocks[idx][prop] = val;
+    generateOrchPreview();
+}
+
+function addOrchRoute(blockIdx) {
+    const b = state.orchestratorBlocks[blockIdx];
+    if (!b.routes) b.routes = [];
+    b.routes.push({ targetAgent: '', condition: '' });
+    renderOrchBlocks();
+    generateOrchPreview();
+}
+
+function removeOrchRoute(blockIdx, routeIdx) {
+    const b = state.orchestratorBlocks[blockIdx];
+    b.routes.splice(routeIdx, 1);
+    if (b.routes.length === 0) b.routes.push({ targetAgent: '', condition: '' });
+    renderOrchBlocks();
+    generateOrchPreview();
+}
+
+function updateOrchRoute(blockIdx, routeIdx, prop, val) {
+    const b = state.orchestratorBlocks[blockIdx];
+    
+    // Check for duplicates when updating targetAgent
+    if (prop === 'targetAgent' && val.trim()) {
+        const isDuplicate = b.routes.some((r, i) => i !== routeIdx && r.targetAgent === val);
+        if (isDuplicate) {
+            showToast(`Agent '${val}' is already in this routing block.`, 'warning');
+            renderOrchBlocks(); // Re-render to reset the input visually if it didn't update state yet
+            return;
+        }
+    }
+
+    b.routes[routeIdx][prop] = val;
     generateOrchPreview();
 }
 
@@ -584,7 +628,7 @@ function renderOrchBlocks() {
     container.innerHTML = state.orchestratorBlocks.map((b, i) => {
         const borderStyle = b.type === 'instruction' ? 'border-color: var(--secondary); background: rgba(59, 130, 246, 0.03);' : 'border-color: var(--warning); background: rgba(245, 158, 11, 0.03);';
         const labelText = b.type === 'instruction' ? 'Instruction Block' : 'Routing Step';
-        
+
         return `
             <div class="card orch-block" 
                  draggable="true" 
@@ -613,19 +657,31 @@ function renderOrchBlocks() {
                                 placeholder="Write instructions..." 
                                 onchange="updateOrchBlock(${i}, 'text', this.value)">${escHtml(b.text)}</textarea>
                     ` : `
-                        <div style="display: flex; gap: 8px;">
-                            <div style="flex:1;">
-                                <label style="font-size:10px; opacity:0.7;">Agent Name (Target)</label>
-                                <input class="form-input" style="font-size: 11px; height: 32px;" 
-                                    list="agents-datalist" placeholder="Select Agent..." value="${escHtml(b.targetAgent)}"
-                                    onchange="updateOrchBlock(${i}, 'targetAgent', this.value)">
+                        <div style="display: flex; flex-direction: column; gap: 10px;">
+                            <div style="margin-bottom:4px;">
+                                <label style="font-size:10px; opacity:0.7;">Routing Header / Instruction</label>
+                                <input class="form-input" style="width: 100%; height: 26px; font-weight: normal; font-size: 11px;" 
+                                    placeholder="Enter header for this routing list..." value="${escHtml(b.header || 'you can choose any of these operations to be passed as destination. Please ask for clarification in case of confusion.')}"
+                                    onchange="updateOrchBlock(${i}, 'header', this.value)">
                             </div>
-                            <div style="flex:2;">
-                                <label style="font-size:10px; opacity:0.7;">Condition</label>
-                                <input class="form-input" style="font-size: 11px; height: 32px;"
-                                    placeholder="Under what conditions..." value="${escHtml(b.condition)}"
-                                    onchange="updateOrchBlock(${i}, 'condition', this.value)">
-                            </div>
+                            ${(b.routes || (b.targetAgent ? [{ targetAgent: b.targetAgent, condition: b.condition }] : [{ targetAgent: '', condition: '' }])).map((r, ri) => `
+                                <div style="display: flex; gap: 8px; align-items: flex-start;">
+                                    <div style="flex:1;">
+                                        <label style="font-size:9px; opacity:0.7;">Target Agent</label>
+                                        <input class="form-input" style="font-size: 11px; height: 32px;" 
+                                            list="agents-datalist" placeholder="Select Agent..." value="${escHtml(r.targetAgent)}"
+                                            onchange="updateOrchRoute(${i}, ${ri}, 'targetAgent', this.value)">
+                                    </div>
+                                    <div style="flex:2;">
+                                        <label style="font-size:9px; opacity:0.7;">Condition</label>
+                                        <input class="form-input" style="font-size: 11px; height: 32px;"
+                                            placeholder="Condition..." value="${escHtml(r.condition)}"
+                                            onchange="updateOrchRoute(${i}, ${ri}, 'condition', this.value)">
+                                    </div>
+                                    <button class="btn-delete" style="margin-top: 20px;" onclick="removeOrchRoute(${i}, ${ri})">&times;</button>
+                                </div>
+                            `).join('')}
+                            <button class="btn btn-outline btn-sm" style="width:100%; font-size: 10px; height: 26px;" onclick="addOrchRoute(${i})">+ Add Destination Route</button>
                         </div>
                     `}
                 </div>
@@ -652,12 +708,12 @@ function handleOrchDragOver(e) {
 function handleOrchDrop(e, targetIdx) {
     e.preventDefault();
     if (_orchDraggedIdx === null || _orchDraggedIdx === targetIdx) return;
-    
+
     // Move block
     const items = state.orchestratorBlocks;
     const itemToMove = items.splice(_orchDraggedIdx, 1)[0];
     items.splice(targetIdx, 0, itemToMove);
-    
+
     _orchDraggedIdx = null;
     renderOrchBlocks();
     generateOrchPreview();
@@ -673,9 +729,35 @@ function addAgentBlock(type, parentId = null) {
     const agent = state.agents[state.currentAgent];
     const newBlock = { _id: _uid(), type };
     if (type === 'instruction') { newBlock.label = 'Instruction'; newBlock.text = ''; }
-    else if (type === 'returnFields') { newBlock.fields = []; }
+    else if (type === 'returnFields') { 
+        newBlock.showJson = false;
+        newBlock.fields = [
+            { name: 'prompt', description: '<The QUestion asked>' },
+            { name: 'answer', description: '<for an answer based on what was asked>' },
+            { name: 'readableAnswer', description: '<an answer that can be read out>' },
+            { name: 'filledForm', description: '<Mandatory field. The tool will return a blank json. Filled form will contain that same json with the values filled with information provided by the user. Keep the values "" if user has not provided. the returned JSON must contain every field returned by the tool>' },
+            { name: 'bigForm', description: 'Default set to true' },
+            { name: 'hasUpload', description: 'Default set to false' },
+            { name: 'masterEntity', description: '' },
+            { name: 'toolCalled', description: '<The tool called. tool name should be exactly same>' },
+            { name: 'buttons', description: '<Array of objects with probable answers. Each object will have one property called text:<possible answer>>' }
+        ];
+    }
     else if (type === 'json') { newBlock.text = '{\n  "status": "success"\n}'; }
     else if (type === 'tag') { newBlock.label = 'NewTag'; newBlock.blocks = []; }
+    else if (type === 'toolMap') { newBlock.targetTool = ''; newBlock.condition = ''; }
+    else if (type === 'oneShot') { 
+        newBlock.question = ''; 
+        newBlock.prompt = '';
+        newBlock.answer = '';
+        newBlock.readableAnswer = '';
+        newBlock.filledForm = '{}';
+        newBlock.bigForm = true;
+        newBlock.hasUpload = false;
+        newBlock.masterEntity = '';
+        newBlock.toolCalled = '';
+        newBlock.buttons = ['', '', ''];
+    }
 
     if (!parentId) {
         agent.agentBlocks.push(newBlock);
@@ -725,6 +807,18 @@ function updateAgentBlock(id, prop, val) {
     generateAgentPreview();
 }
 
+function toggleAgentBlockProp(id, prop) {
+    const agent = state.agents[state.currentAgent];
+    const findNode = (list) => {
+        for (let b of list) {
+            if (b._id === id) { b[prop] = !b[prop]; return true; }
+            if (b.blocks && findNode(b.blocks)) return true;
+        }
+    };
+    findNode(agent.agentBlocks);
+    renderAgentBlocks();
+}
+
 function addReturnField(blockId) {
     const agent = state.agents[state.currentAgent];
     const findNode = (list) => {
@@ -754,6 +848,7 @@ function updateReturnField(blockId, fieldIdx, prop, val) {
         }
     };
     findNode(agent.agentBlocks || []);
+    renderAgentBlocks();
     generateAgentPreview();
 }
 
@@ -773,10 +868,32 @@ function removeReturnField(blockId, fieldIdx) {
     generateAgentPreview();
 }
 
+function updateOneShotButton(blockId, btnIdx, val) {
+    const agent = state.agents[state.currentAgent];
+    const findNode = (list) => {
+        for (let b of list) {
+            if (b._id === blockId) {
+                if (!b.buttons) b.buttons = ['', '', ''];
+                b.buttons[btnIdx] = val;
+                return true;
+            }
+            if (b.blocks && findNode(b.blocks)) return true;
+        }
+    };
+    findNode(agent.agentBlocks);
+    generateAgentPreview();
+}
+
 function renderAgentBlocks() {
     const container = document.getElementById('agent-blocks-container');
     if (!container || state.currentAgent === null) return;
     const agent = state.agents[state.currentAgent];
+
+    // Refresh tools datalist
+    const dl = document.getElementById('tools-datalist');
+    if (dl) {
+        dl.innerHTML = (agent.tools || []).map(t => `<option value="${escHtml(t.toolName)}">`).join('');
+    }
 
     const renderLevel = (blocks, level = 0) => {
         return blocks.map((b, i) => {
@@ -785,6 +902,8 @@ function renderAgentBlocks() {
             if (b.type === 'returnFields') { color = 'var(--success)'; title = 'Return Fields'; }
             if (b.type === 'json') { color = 'var(--warning)'; title = 'JSON'; }
             if (b.type === 'tag') { color = 'var(--primary-light)'; title = 'Tag Group'; }
+            if (b.type === 'toolMap') { color = 'var(--info)'; title = 'Tool Map'; }
+            if (b.type === 'oneShot') { color = 'var(--warning)'; title = 'One-Shot Example'; }
 
             return `
                 <div class="card" draggable="true" 
@@ -818,10 +937,84 @@ function renderAgentBlocks() {
                                     </div>
                                 `).join('')}
                                 <button class="btn btn-outline btn-sm" style="width:100%; margin-top:2px; font-size:10px;" onclick="addReturnField('${b._id}')">+ Field</button>
+                                
+                                <div style="margin-top:10px; border-top:1px solid var(--border); padding-top:8px;">
+                                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                                        <span style="font-size:10px; font-weight:bold; color:var(--text-muted); text-transform:uppercase;">JSON Example</span>
+                                        <button class="btn btn-outline btn-sm" style="font-size:9px; padding:2px 6px;" onclick="toggleAgentBlockProp('${b._id}', 'showJson')">${b.showJson ? 'Hide' : 'Show'} JSON</button>
+                                    </div>
+                                    ${b.showJson ? `
+                                        <pre class="code-editor" style="background:var(--bg-elevated); padding:8px; border-radius:4px; font-size:10px; margin:0; overflow-x:auto; border:1px solid var(--border); color:var(--text-dim);">${escHtml(JSON.stringify(Object.fromEntries(b.fields.map(f => [f.name, f.description])), null, 2))}</pre>
+                                    ` : ''}
+                                </div>
                             </div>
                         ` : b.type === 'json' ? `
                             <textarea class="form-textarea code-editor" style="font-size:11px; font-family:monospace; background: var(--bg-elevated); color: var(--text);" rows="4"
                                       onchange="updateAgentBlock('${b._id}', 'text', this.value)">${escHtml(b.text)}</textarea>
+                        ` : b.type === 'toolMap' ? `
+                            <div style="display: flex; gap: 8px;">
+                                <div style="flex:1;">
+                                    <label style="font-size:10px; opacity:0.7;">Tool Name (Target)</label>
+                                    <input class="form-input" style="font-size: 11px; height: 32px;" 
+                                           list="tools-datalist" placeholder="Select Tool..." value="${escHtml(b.targetTool)}"
+                                           onchange="updateAgentBlock('${b._id}', 'targetTool', this.value)">
+                                </div>
+                                <div style="flex:2;">
+                                    <label style="font-size:10px; opacity:0.7;">Condition</label>
+                                    <input class="form-input" style="font-size: 11px; height: 32px;"
+                                           placeholder="Under what conditions..." value="${escHtml(b.condition)}"
+                                           onchange="updateAgentBlock('${b._id}', 'condition', this.value)">
+                                </div>
+                            </div>
+                        ` : b.type === 'oneShot' ? `
+                            <div style="display:flex; flex-direction:column; gap:10px;">
+                                <div>
+                                    <label style="font-size:10px; font-weight:bold; color:var(--text-muted); text-transform:uppercase;">User Question:</label>
+                                    <input class="form-input" style="height:28px; font-size:11px;" value="${escHtml(b.question)}" placeholder="The User question asked..." onchange="updateAgentBlock('${b._id}', 'question', this.value)">
+                                </div>
+                                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
+                                    <div>
+                                        <label style="font-size:10px; opacity:0.7;">AI Prompt Echo</label>
+                                        <input class="form-input" style="height:26px; font-size:11px;" value="${escHtml(b.prompt)}" placeholder="Prompt asked..." onchange="updateAgentBlock('${b._id}', 'prompt', this.value)">
+                                    </div>
+                                    <div>
+                                        <label style="font-size:10px; opacity:0.7;">Tool Called</label>
+                                        <input class="form-input" style="height:26px; font-size:11px;" value="${escHtml(b.toolCalled)}" placeholder="Tool Name..." onchange="updateAgentBlock('${b._id}', 'toolCalled', this.value)">
+                                    </div>
+                                </div>
+                                <div>
+                                    <label style="font-size:10px; opacity:0.7;">AI Answer (Primary)</label>
+                                    <input class="form-input" style="height:26px; font-size:11px;" value="${escHtml(b.answer)}" placeholder="Answer based on input..." onchange="updateAgentBlock('${b._id}', 'answer', this.value)">
+                                </div>
+                                <div>
+                                    <label style="font-size:10px; opacity:0.7;">Readable Answer (Speech)</label>
+                                    <input class="form-input" style="height:26px; font-size:11px;" value="${escHtml(b.readableAnswer)}" placeholder="Answer for readout..." onchange="updateAgentBlock('${b._id}', 'readableAnswer', this.value)">
+                                </div>
+                                <div>
+                                    <label style="font-size:10px; opacity:0.7;">Filled Form (JSON Data)</label>
+                                    <textarea class="form-textarea code-editor" style="font-size:11px; font-family:monospace; background: var(--bg-elevated); color: var(--text);" rows="3"
+                                              onchange="updateAgentBlock('${b._id}', 'filledForm', this.value)">${escHtml(b.filledForm)}</textarea>
+                                </div>
+                                <div style="display:flex; gap:12px; align-items:center;">
+                                    <label style="font-size:11px; display:flex; align-items:center; cursor:pointer;">
+                                        <input type="checkbox" ${b.bigForm ? 'checked' : ''} onchange="updateAgentBlock('${b._id}', 'bigForm', this.checked)" style="margin-right:6px;"> Big Form
+                                    </label>
+                                    <label style="font-size:11px; display:flex; align-items:center; cursor:pointer;">
+                                        <input type="checkbox" ${b.hasUpload ? 'checked' : ''} onchange="updateAgentBlock('${b._id}', 'hasUpload', this.checked)" style="margin-right:6px;"> Has Upload
+                                    </label>
+                                    <div style="flex:1;">
+                                        <input class="form-input" style="height:24px; font-size:10px;" value="${escHtml(b.masterEntity)}" placeholder="Master Entity..." onchange="updateAgentBlock('${b._id}', 'masterEntity', this.value)">
+                                    </div>
+                                </div>
+                                <div>
+                                    <label style="font-size:10px; opacity:0.7;">Probable Next Answers (Buttons):</label>
+                                    <div style="display:flex; gap:6px; margin-top:2px;">
+                                        <input class="form-input" style="flex:1; height:24px; font-size:10px;" value="${escHtml(b.buttons[0] || '')}" placeholder="Button 1" onchange="updateOneShotButton('${b._id}', 0, this.value)">
+                                        <input class="form-input" style="flex:1; height:24px; font-size:10px;" value="${escHtml(b.buttons[1] || '')}" placeholder="Button 2" onchange="updateOneShotButton('${b._id}', 1, this.value)">
+                                        <input class="form-input" style="flex:1; height:24px; font-size:10px;" value="${escHtml(b.buttons[2] || '')}" placeholder="Button 3" onchange="updateOneShotButton('${b._id}', 2, this.value)">
+                                    </div>
+                                </div>
+                            </div>
                         ` : `
                             <div style="display:flex; flex-direction:column; gap:8px;">
                                 <div style="display:flex; gap:8px; align-items:center;">
@@ -835,6 +1028,7 @@ function renderAgentBlocks() {
                                     <div class="btn-row" style="margin-top:8px;">
                                         <button class="btn btn-outline btn-sm" style="font-size:10px; padding:2px 6px;" onclick="addAgentBlock('instruction', '${b._id}')">+ Instruction</button>
                                         <button class="btn btn-outline btn-sm" style="font-size:10px; padding:2px 6px;" onclick="addAgentBlock('tag', '${b._id}')">+ Tag</button>
+                                        <button class="btn btn-outline btn-sm" style="font-size:10px; padding:2px 6px;" onclick="addAgentBlock('toolMap', '${b._id}')">+ Tool Map</button>
                                         <button class="btn btn-outline btn-sm" style="font-size:10px; padding:2px 6px;" onclick="addAgentBlock('json', '${b._id}')">+ JSON</button>
                                     </div>
                                 </div>
@@ -861,7 +1055,7 @@ function handleAgentDrop(e, targetId) {
     e.preventDefault();
     if (!_agentDraggedId || _agentDraggedId === targetId) return;
     const agent = state.agents[state.currentAgent];
-    
+
     const findAndMove = (list) => {
         const fromIdx = list.findIndex(b => b._id === _agentDraggedId);
         const toIdx = list.findIndex(b => b._id === targetId);
@@ -909,6 +1103,27 @@ function generateAgentPreview() {
             } else if (b.type === 'json') {
                 const clean = (b.text || '').trim();
                 if (clean) text += clean + "\n\n";
+            } else if (b.type === 'toolMap') {
+                if (b.targetTool.trim()) text += `Route to tool ${b.targetTool} if ${b.condition || 'no specific condition'}\n\n`;
+            } else if (b.type === 'oneShot') {
+                try {
+                    const btnJson = (b.buttons || []).filter(x => x.trim()).map(x => ({ text: x.trim() }));
+                    const filledForm = JSON.parse(b.filledForm || '{}');
+                    const ansObj = {
+                        prompt: b.prompt || b.question || "",
+                        answer: b.answer || "",
+                        readableAnswer: b.readableAnswer || "",
+                        filledForm: filledForm,
+                        bigForm: !!b.bigForm,
+                        hasUpload: !!b.hasUpload,
+                        masterEntity: b.masterEntity || "",
+                        toolCalled: b.toolCalled || "",
+                        buttons: btnJson
+                    };
+                    text += `<example>\nUser: ${b.question || "..."}\nAssistant: \n${JSON.stringify(ansObj, null, 2)}\n</example>\n\n`;
+                } catch (e) {
+                    text += `<example>\nUser: ${b.question || "..."}\nAssistant: (Invalid JSON in Filled Form)\n</example>\n\n`;
+                }
             } else if (b.type === 'tag') {
                 const tag = (b.label || 'Tag').trim().replace(/[^a-z0-9]/gi, '');
                 const content = buildPrompt(b.blocks || "").trim();
@@ -1116,8 +1331,8 @@ function showAgentDetail(idx) {
     document.getElementById('det-agent-name').value = agent.agentName;
     document.getElementById('det-agent-def').value = agent.agentDefinition || '';
 
-    document.getElementById('det-agent-name').onchange = function () { 
-        agent.agentName = this.value; 
+    document.getElementById('det-agent-name').onchange = function () {
+        agent.agentName = this.value;
         publishToUI5(); // Sync naming if needed
     };
     // Generated preview will update the text value
