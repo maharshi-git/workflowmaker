@@ -1882,3 +1882,73 @@ select.form-input {
 .modal-body {
     padding: 24px;
 }
+
+/* ── Quill Dark Theme Overrides ──────────────────────────── */
+.ql-toolbar.ql-snow {
+    background: #1e1e1e !important;
+    border-color: var(--border) !important;
+    border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+}
+.ql-container.ql-snow {
+    border-color: var(--border) !important;
+    background: var(--bg-input) !important;
+    color: var(--text) !important;
+    font-family: inherit !important;
+    border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+}
+.ql-snow .ql-stroke {
+    stroke: var(--text-dim) !important;
+}
+.ql-snow .ql-fill {
+    fill: var(--text-dim) !important;
+}
+.ql-snow .ql-picker {
+    color: var(--text-dim) !important;
+}
+
+/* Preview specific: hide toolbar, keep only container */
+#orchestrator-def-preview .ql-toolbar, #agent-def-preview .ql-toolbar {
+    display: none !important;
+}
+#orchestrator-def-preview .ql-container, #agent-def-preview .ql-container {
+    border-radius: var(--radius-sm) !important;
+    border: none !important;
+}
+.preview-scroll-container {
+    height: 40vh; 
+    min-height: 350px; 
+    padding: 24px;
+    background: var(--bg-elevated); 
+    border: 1px solid var(--border); 
+    border-radius: var(--radius-sm); 
+    color: #e0e0e0;
+    overflow-y: auto;
+    font-size: 13.5px;
+    line-height: 1.6;
+}
+.preview-scroll-container h3, .preview-scroll-container strong {
+    color: var(--primary-light) !important;
+}
+.preview-scroll-container p {
+    margin-bottom: 12px;
+}
+.preview-scroll-container ul {
+    margin-left: 20px;
+    margin-bottom: 16px;
+    list-style-type: disc !important;
+}
+.preview-scroll-container li {
+    margin-bottom: 6px;
+    display: list-item !important;
+}
+.preview-scroll-container code, .preview-scroll-container pre {
+    background: rgba(0, 0, 0, 0.2);
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 12px;
+    color: var(--secondary);
+}
+.dummy-hide {
+    overflow-y: auto;
+}

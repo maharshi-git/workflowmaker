@@ -371,9 +371,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         renderOrchBlocks();
-        if (orch && orch.OrchestratorDescription) {
-            document.getElementById('orchestrator-def-input').value = orch.OrchestratorDescription;
-        }
+        generateOrchPreview();
     } catch (e) { console.error('Failed to load orchestrator', e); }
 
     // Auto-expand textareas
@@ -505,16 +503,18 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 async function saveOrchestrator() {
-    generateOrchPreview();
-    const desc = document.getElementById('orchestrator-def-input').value;
-    const useHeaders = document.getElementById('orch-use-headers') ? document.getElementById('orch-use-headers').checked : false;
+    generateOrchPreview(); // Ensure HTML is latest
+    const previewEl = document.getElementById('orchestrator-def-preview');
+    const descHtml = previewEl ? previewEl.innerHTML : "";
+    const descMd = htmlToMarkdown(descHtml);
 
     try {
+        const useHeaders = document.getElementById('orch-use-headers') ? document.getElementById('orch-use-headers').checked : false;
         const res = await fetch('/api/orchestrator', {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                OrchestratorDescription: desc,
+                OrchestratorDescription: descMd,
                 OrchestratorBlocks: state.orchestratorBlocks,
                 useBlockHeaders: useHeaders
             }),
@@ -525,43 +525,130 @@ async function saveOrchestrator() {
 }
 
 function generateOrchPreview() {
-    let desc = "";
+    let html = "";
     const useHeaders = document.getElementById('orch-use-headers') ? document.getElementById('orch-use-headers').checked : false;
 
     state.orchestratorBlocks.forEach(b => {
+        // Ensure normalization even here
+        if (b.type === 'routing' && !b.routes) {
+            b.routes = [{ targetAgent: b.targetAgent || '', condition: b.condition || '' }];
+        }
+
         if (b.type === 'instruction') {
-            const cleanText = b.text.trim();
-            if (cleanText) {
+            const cleanHtml = (b.text || '').trim();
+            if (cleanHtml && cleanHtml !== '<p><br></p>') {
                 if (useHeaders) {
-                    const tag = b.label.trim() || 'Instruction';
-                    // Strip non-alphanumeric for tags just in case
-                    const cleanTag = tag.replace(/[^a-z0-0]/gi, '');
-                    desc += `<${cleanTag}>\n${cleanText}\n</${cleanTag}>\n\n`;
+                    const tag = (b.label || 'Instruction').trim().replace(/[^a-z0-0]/gi, '');
+                    html += `<p><strong>&lt;${tag}&gt;</strong></p>${cleanHtml}<p><strong>&lt;/${tag}&gt;</strong></p><br>`;
                 } else {
-                    desc += `${b.label || 'Instruction'}:\n${cleanText}\n\n`;
+                    html += `<strong>${b.label || 'Instruction'}:</strong><br>${cleanHtml}<br><br>`;
                 }
             }
         } else if (b.type === 'routing') {
             const header = (b.header || "you can choose any of these operations to be passed as destination. Please ask for clarification in case of confusion.").trim();
-            desc += `${header}\n`;
-            routes.forEach(r => {
-                if (r.targetAgent.trim()) {
-                    const cond = (r.condition || 'no specific condition').trim();
-                    if (cond.includes('\n')) {
-                        desc += `- ${r.targetAgent} - if:\n`;
-                        cond.split('\n').forEach(line => {
-                            if (line.trim()) desc += `  - ${line.trim()}\n`;
-                        });
-                    } else {
-                        desc += `- ${r.targetAgent} - if ${cond}\n`;
-                    }
+            html += `<p>${header}</p><ul>`;
+            b.routes.forEach(r => {
+                if (r.targetAgent && r.targetAgent.trim()) {
+                    const condHtml = r.condition || 'no specific condition';
+                    html += `<li><strong>${r.targetAgent}</strong> - if: ${condHtml}</li>`;
                 }
             });
-            desc += `\n`;
+            html += `</ul><br>`;
         }
     });
-    const el = document.getElementById('orchestrator-def-input');
-    if (el) el.value = desc.trim();
+
+    const previewEl = document.getElementById('orchestrator-def-preview');
+    if (!previewEl) return;
+    previewEl.innerHTML = html || '<p style="color:var(--text-dim); font-style:italic;">Add blocks to generate preview...</p>';
+}
+
+function htmlToMarkdown(html) {
+    if (!html) return '';
+    const div = document.createElement('div');
+    div.innerHTML = html;
+    
+    let md = "";
+
+    const process = (node) => {
+        if (node.nodeType === 3) {
+            md += node.textContent;
+        } else if (node.nodeName === 'BR') {
+            md += "\n";
+        } else if (node.nodeName === 'P' || node.nodeName === 'DIV') {
+            const before = md.length;
+            node.childNodes.forEach(process);
+            if (md.length > before) md += "\n";
+        } else if (node.nodeName === 'STRONG' || node.nodeName === 'B') {
+            md += "**";
+            node.childNodes.forEach(process);
+            md += "**";
+        } else if (node.nodeName === 'EM' || node.nodeName === 'I') {
+            md += "_";
+            node.childNodes.forEach(process);
+            md += "_";
+        } else if (node.nodeName === 'UL') {
+            node.childNodes.forEach(child => {
+                if (child.nodeName === 'LI') {
+                    md += "\n- ";
+                    child.childNodes.forEach(process);
+                }
+            });
+            md += "\n";
+        } else if (node.nodeName === 'OL') {
+            let i = 1;
+            node.childNodes.forEach(child => {
+                if (child.nodeName === 'LI') {
+                    md += `\n${i}. `;
+                    child.childNodes.forEach(process);
+                    i++;
+                }
+            });
+            md += "\n";
+        } else {
+            node.childNodes.forEach(process);
+        }
+    };
+
+    process(div);
+    return md.replace(/\n{3,}/g, '\n\n').trim();
+}
+
+let _orchEditors = {};
+let _agentEditors = {};
+let _orchPreviewEditor = null;
+let _agentPreviewEditor = null;
+
+function clearOrchEditors() { _orchEditors = {}; }
+function clearAgentEditors() { _agentEditors = {}; }
+
+function initQuill(id, initialValue, onChange) {
+    if (typeof Quill === 'undefined') {
+        // Retry in 1s if not loaded yet
+        setTimeout(() => {
+            if (typeof Quill !== 'undefined') {
+                renderOrchBlocks();
+                if (state.currentAgent !== null) renderAgentBlocks();
+            }
+        }, 1000);
+        return null;
+    }
+    const el = document.getElementById(id);
+    if (!el) return null;
+    const quill = new Quill(el, {
+        theme: 'snow',
+        modules: {
+            toolbar: [
+                ['bold', 'italic', 'underline'],
+                [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+                ['clean']
+            ]
+        }
+    });
+    if (initialValue) quill.root.innerHTML = initialValue;
+    quill.on('text-change', () => {
+        onChange(quill.root.innerHTML);
+    });
+    return quill;
 }
 
 function addOrchBlock(type) {
@@ -628,13 +715,12 @@ function renderOrchBlocks() {
     const container = document.getElementById('orch-blocks-container');
     if (!container) return;
 
-    // Refresh datalist while we're at it
-    const dl = document.getElementById('agents-datalist');
-    if (dl) {
-        dl.innerHTML = state.agents.map(a => `<option value="${escHtml(a.agentName)}">`).join('');
-    }
-
     container.innerHTML = state.orchestratorBlocks.map((b, i) => {
+        // Data Normalization (legacy to multi-route)
+        if (b.type === 'routing' && !b.routes) {
+            b.routes = [{ targetAgent: b.targetAgent || '', condition: b.condition || '' }];
+        }
+        
         const borderStyle = b.type === 'instruction' ? 'border-color: var(--secondary); background: rgba(59, 130, 246, 0.03);' : 'border-color: var(--warning); background: rgba(245, 158, 11, 0.03);';
         const labelText = b.type === 'instruction' ? 'Instruction Block' : 'Routing Step';
 
@@ -662,9 +748,7 @@ function renderOrchBlocks() {
                                 placeholder="Instruction Label" value="${escHtml(b.label)}"
                                 onchange="updateOrchBlock(${i}, 'label', this.value)">
                         </div>
-                        <textarea class="form-textarea" style="font-size: 11px;" rows="2" 
-                                placeholder="Write instructions..." 
-                                onchange="updateOrchBlock(${i}, 'text', this.value)">${escHtml(b.text)}</textarea>
+                        <div id="orch-editor-${i}" style="min-height: 80px; margin-bottom: 8px;"></div>
                     ` : `
                         <div style="display: flex; flex-direction: column; gap: 10px;">
                             <div style="margin-bottom:4px;">
@@ -673,7 +757,7 @@ function renderOrchBlocks() {
                                     placeholder="Enter header for this routing list..." value="${escHtml(b.header || 'you can choose any of these operations to be passed as destination. Please ask for clarification in case of confusion.')}"
                                     onchange="updateOrchBlock(${i}, 'header', this.value)">
                             </div>
-                            ${(b.routes || (b.targetAgent ? [{ targetAgent: b.targetAgent, condition: b.condition }] : [{ targetAgent: '', condition: '' }])).map((r, ri) => `
+                            ${b.routes.map((r, ri) => `
                                 <div style="display: flex; gap: 8px; align-items: flex-start;">
                                     <div style="flex:1;">
                                         <label style="font-size:9px; opacity:0.7;">Target Agent</label>
@@ -682,10 +766,8 @@ function renderOrchBlocks() {
                                             onchange="updateOrchRoute(${i}, ${ri}, 'targetAgent', this.value)">
                                     </div>
                                     <div style="flex:2;">
-                                        <label style="font-size:9px; opacity:0.7;">Condition(s) - Supports New Lines</label>
-                                        <textarea class="form-textarea" style="font-size: 11px; height: 32px; min-height: 32px; padding: 4px 8px;"
-                                            placeholder="Condition..." 
-                                            onchange="updateOrchRoute(${i}, ${ri}, 'condition', this.value)">${escHtml(r.condition)}</textarea>
+                                        <label style="font-size:9px; opacity:0.7;">Condition(s)</label>
+                                        <div id="orch-cond-editor-${i}-${ri}" style="min-height: 50px;"></div>
                                     </div>
                                     <button class="btn-delete" style="margin-top: 20px;" onclick="removeOrchRoute(${i}, ${ri})">&times;</button>
                                 </div>
@@ -701,6 +783,30 @@ function renderOrchBlocks() {
     if (state.orchestratorBlocks.length === 0) {
         container.innerHTML = `<div style="text-align:center; color:var(--text-dim); font-size:12px; padding:20px; border:1px dashed var(--border); border-radius:var(--radius-sm);">No blocks added yet. Click above to start building.</div>`;
     }
+
+    // Surgical Quill Init: only if not already initialized
+    state.orchestratorBlocks.forEach((b, i) => {
+        if (b.type === 'instruction') {
+            const editorId = `orch-editor-${i}`;
+            if (!_orchEditors[editorId]) {
+                _orchEditors[editorId] = initQuill(editorId, b.text, (val) => {
+                    b.text = val;
+                    generateOrchPreview();
+                });
+            }
+        }
+        if (b.type === 'routing' && b.routes) {
+            b.routes.forEach((r, ri) => {
+                const condId = `orch-cond-editor-${i}-${ri}`;
+                if (!_orchEditors[condId]) {
+                    _orchEditors[condId] = initQuill(condId, r.condition, (val) => {
+                        r.condition = val;
+                        generateOrchPreview();
+                    });
+                }
+            });
+        }
+    });
 }
 
 function handleOrchDragStart(e, idx) {
@@ -754,7 +860,10 @@ function addAgentBlock(type, parentId = null) {
     }
     else if (type === 'json') { newBlock.text = '{\n  "status": "success"\n}'; }
     else if (type === 'tag') { newBlock.label = 'NewTag'; newBlock.blocks = []; }
-    else if (type === 'toolMap') { newBlock.targetTool = ''; newBlock.condition = ''; }
+    else if (type === 'toolMap') { 
+        newBlock.header = 'Based on the user query, choose the most appropriate tool from the following map:';
+        newBlock.routes = [{ targetTool: '', condition: '' }]; 
+    }
     else if (type === 'oneShot') { 
         newBlock.question = ''; 
         newBlock.prompt = '';
@@ -799,6 +908,7 @@ function removeAgentBlock(id) {
         return false;
     };
     dropById(agent.agentBlocks);
+    clearAgentEditors(); // Clear editors on block removal
     renderAgentBlocks();
     generateAgentPreview();
 }
@@ -842,6 +952,67 @@ function addReturnField(blockId) {
     };
     findNode(agent.agentBlocks);
     renderAgentBlocks();
+}
+
+function removeReturnField(blockId, fieldIdx) {
+    const agent = state.agents[state.currentAgent];
+    const findNode = (list) => {
+        for (let b of list) {
+            if (b._id === blockId) {
+                b.fields.splice(fieldIdx, 1);
+                return true;
+            }
+            if (b.blocks && findNode(b.blocks)) return true;
+        }
+    };
+    findNode(agent.agentBlocks);
+    renderAgentBlocks();
+}
+
+function addAgentRoute(blockId) {
+    const agent = state.agents[state.currentAgent];
+    const findNode = (list) => {
+        for (let b of list) {
+            if (b._id === blockId) {
+                if (!b.routes) b.routes = [];
+                b.routes.push({ targetTool: '', condition: '' });
+                return true;
+            }
+            if (b.blocks && findNode(b.blocks)) return true;
+        }
+    };
+    findNode(agent.agentBlocks);
+    renderAgentBlocks();
+}
+
+function removeAgentRoute(blockId, routeIdx) {
+    const agent = state.agents[state.currentAgent];
+    const findNode = (list) => {
+        for (let b of list) {
+            if (b._id === blockId) {
+                b.routes.splice(routeIdx, 1);
+                return true;
+            }
+            if (b.blocks && findNode(b.blocks)) return true;
+        }
+    };
+    findNode(agent.agentBlocks);
+    clearAgentEditors();
+    renderAgentBlocks();
+}
+
+function updateAgentRoute(blockId, routeIdx, prop, val) {
+    const agent = state.agents[state.currentAgent];
+    const findNode = (list) => {
+        for (let b of list) {
+            if (b._id === blockId) {
+                b.routes[routeIdx][prop] = val;
+                return true;
+            }
+            if (b.blocks && findNode(b.blocks)) return true;
+        }
+    };
+    findNode(agent.agentBlocks);
     generateAgentPreview();
 }
 
@@ -898,6 +1069,9 @@ function renderAgentBlocks() {
     if (!container || state.currentAgent === null) return;
     const agent = state.agents[state.currentAgent];
 
+    // Reset editor map for Agent blocks
+    _agentEditors = {};
+
     // Refresh tools datalist
     const dl = document.getElementById('tools-datalist');
     if (dl) {
@@ -930,12 +1104,13 @@ function renderAgentBlocks() {
 
                     <div style="pointer-events:auto;">
                         ${b.type === 'instruction' ? `
-                            <input class="form-input" style="height:24px; font-weight:bold; font-size:11px; margin-bottom:6px;" 
-                                   placeholder="Label" value="${escHtml(b.label)}"
+                            <div style="margin-bottom:8px;">
+                                <label style="font-size:10px; opacity:0.7;">Label (Header Tag)</label>
+                                <input class="form-input" style="width: 100%; height: 26px; font-weight: bold; font-size: 11px;" 
+                                   placeholder="Instruction Label" value="${escHtml(b.label)}"
                                    onchange="updateAgentBlock('${b._id}', 'label', this.value)">
-                            <textarea class="form-textarea" style="font-size:11px;" rows="2" 
-                                      placeholder="Prompt logic..." 
-                                      onchange="updateAgentBlock('${b._id}', 'text', this.value)">${escHtml(b.text)}</textarea>
+                            </div>
+                                <div id="agent-editor-${b._id}" style="min-height: 80px; margin-bottom: 8px;"></div>
                         ` : b.type === 'returnFields' ? `
                             <div style="display:flex; flex-direction:column; gap:4px;">
                                 ${(b.fields || []).map((f, fi) => `
@@ -961,19 +1136,29 @@ function renderAgentBlocks() {
                             <textarea class="form-textarea code-editor" style="font-size:11px; font-family:monospace; background: var(--bg-elevated); color: var(--text);" rows="4"
                                       onchange="updateAgentBlock('${b._id}', 'text', this.value)">${escHtml(b.text)}</textarea>
                         ` : b.type === 'toolMap' ? `
-                            <div style="display: flex; gap: 8px;">
-                                <div style="flex:1;">
-                                    <label style="font-size:10px; opacity:0.7;">Tool Name (Target)</label>
-                                    <input class="form-input" style="font-size: 11px; height: 32px;" 
-                                           list="tools-datalist" placeholder="Select Tool..." value="${escHtml(b.targetTool)}"
-                                           onchange="updateAgentBlock('${b._id}', 'targetTool', this.value)">
+                            <div style="display: flex; flex-direction: column; gap: 10px;">
+                                <div style="margin-bottom:4px;">
+                                    <label style="font-size:10px; opacity:0.7;">Tool Map Header / Holistic Instruction</label>
+                                    <input class="form-input" style="width: 100%; height: 26px; font-weight: normal; font-size: 11px;" 
+                                        placeholder="Enter header..." value="${escHtml(b.header || 'Based on the user query, choose the most appropriate tool from the following map:')}"
+                                        onchange="updateAgentBlock('${b._id}', 'header', this.value)">
                                 </div>
-                                <div style="flex:2;">
-                                    <label style="font-size:10px; opacity:0.7;">Condition</label>
-                                    <input class="form-input" style="font-size: 11px; height: 32px;"
-                                           placeholder="Under what conditions..." value="${escHtml(b.condition)}"
-                                           onchange="updateAgentBlock('${b._id}', 'condition', this.value)">
-                                </div>
+                                ${(b.routes || [{ targetTool: b.targetTool || '', condition: b.condition || '' }]).map((r, ri) => `
+                                    <div style="display: flex; gap: 8px; align-items: flex-start;">
+                                        <div style="flex:1;">
+                                            <label style="font-size:9px; opacity:0.7;">Target Tool</label>
+                                            <input class="form-input" style="font-size: 11px; height: 32px;" 
+                                                list="tools-datalist" placeholder="Select Tool..." value="${escHtml(r.targetTool)}"
+                                                onchange="updateAgentRoute('${b._id}', ${ri}, 'targetTool', this.value)">
+                                        </div>
+                                        <div style="flex:2;">
+                                            <label style="font-size:9px; opacity:0.7;">Condition(s)</label>
+                                            <div id="agent-cond-editor-${b._id}-${ri}" style="min-height: 50px;"></div>
+                                        </div>
+                                        <button class="btn-delete" style="margin-top: 20px;" onclick="removeAgentRoute('${b._id}', ${ri})">&times;</button>
+                                    </div>
+                                `).join('')}
+                                <button class="btn btn-outline btn-sm" style="width:100%; font-size: 10px; height: 26px;" onclick="addAgentRoute('${b._id}')">+ Add Tool Map Route</button>
                             </div>
                         ` : b.type === 'oneShot' ? `
                             <div style="display:flex; flex-direction:column; gap:10px;">
@@ -1050,6 +1235,34 @@ function renderAgentBlocks() {
     };
 
     container.innerHTML = renderLevel(agent.agentBlocks || []) || '<div style="text-align:center; padding:16px; border:1px dashed var(--border); color:var(--text-dim); font-size:12px;">No blocks added.</div>';
+
+    // Surgical Quill Init for Agent Blocks
+    const findAndInit = (list) => {
+        list.forEach(b => {
+            if (b.type === 'instruction') {
+                const editorId = `agent-editor-${b._id}`;
+                if (!_agentEditors[editorId]) {
+                    _agentEditors[editorId] = initQuill(editorId, b.text, (val) => {
+                        b.text = val;
+                        generateAgentPreview();
+                    });
+                }
+            } else if (b.type === 'toolMap') {
+                const routes = b.routes || [{ targetTool: b.targetTool || '', condition: b.condition || '' }];
+                routes.forEach((r, ri) => {
+                    const condId = `agent-cond-editor-${b._id}-${ri}`;
+                    if (!_agentEditors[condId]) {
+                        _agentEditors[condId] = initQuill(condId, r.condition, (val) => {
+                            r.condition = val;
+                            generateAgentPreview();
+                        });
+                    }
+                });
+            }
+            if (b.blocks) findAndInit(b.blocks);
+        });
+    }
+    findAndInit(agent.agentBlocks || []);
 }
 
 let _agentDraggedId = null;
@@ -1088,63 +1301,59 @@ function generateAgentPreview() {
     const agent = state.agents[state.currentAgent];
     const useHeaders = document.getElementById('orch-use-headers') ? document.getElementById('orch-use-headers').checked : false;
 
-    const buildPrompt = (blocks) => {
-        let text = "";
+    const buildPromptHtml = (blocks) => {
+        let html = "";
         blocks.forEach(b => {
             if (b.type === 'instruction') {
                 const clean = (b.text || '').trim();
-                if (clean) {
+                if (clean && clean !== '<p><br></p>') {
                     if (useHeaders) {
-                        const tag = (b.label || 'Instruction').trim().replace(/[^a-z0-9]/gi, '');
-                        text += `<${tag}>\n${clean}\n</${tag}>\n\n`;
+                        const tag = (b.label || 'Instruction').trim().replace(/[^a-z0-0]/gi, '');
+                        html += `<p><strong>&lt;${tag}&gt;</strong></p>${clean}<p><strong>&lt;/${tag}&gt;</strong></p><br>`;
                     } else {
-                        text += `${b.label || 'Instruction'}:\n${clean}\n\n`;
+                        html += `<strong>${b.label || 'Instruction'}:</strong><br>${clean}<br><br>`;
                     }
                 }
             } else if (b.type === 'returnFields') {
                 if (b.fields && b.fields.length > 0) {
-                    text += "Return the following fields:\n";
+                    html += "<p>Return the following fields:</p><ul>";
                     b.fields.forEach(f => {
-                        text += `- ${f.name}: ${f.description}\n`;
+                        html += `<li><strong>${f.name}</strong>: ${f.description}</li>`;
                     });
-                    text += "\n";
+                    html += "</ul><br>";
                 }
             } else if (b.type === 'json') {
                 const clean = (b.text || '').trim();
-                if (clean) text += clean + "\n\n";
+                if (clean && clean !== '<p><br></p>') html += `<pre style="background:var(--bg-elevated); padding:8px; border-radius:4px; font-family:monospace; font-size:11px;">${clean}</pre><br>`;
             } else if (b.type === 'toolMap') {
-                if (b.targetTool.trim()) text += `Route to tool ${b.targetTool} if ${b.condition || 'no specific condition'}\n\n`;
+                const header = (b.header || 'Based on the user query, choose the most appropriate tool from the following map:').trim();
+                html += `<p>${header}</p><ul>`;
+                const routes = b.routes || [{ targetTool: b.targetTool || '', condition: b.condition || '' }];
+                routes.forEach(r => {
+                    if (r.targetTool && r.targetTool.trim()) {
+                        html += `<li><strong>${r.targetTool}</strong> - if: ${r.condition || 'no specific condition'}</li>`;
+                    }
+                });
+                html += `</ul><br>`;
             } else if (b.type === 'oneShot') {
-                try {
-                    const btnJson = (b.buttons || []).filter(x => x.trim()).map(x => ({ text: x.trim() }));
-                    const filledForm = JSON.parse(b.filledForm || '{}');
-                    const ansObj = {
-                        prompt: b.prompt || b.question || "",
-                        answer: b.answer || "",
-                        readableAnswer: b.readableAnswer || "",
-                        filledForm: filledForm,
-                        bigForm: !!b.bigForm,
-                        hasUpload: !!b.hasUpload,
-                        masterEntity: b.masterEntity || "",
-                        toolCalled: b.toolCalled || "",
-                        buttons: btnJson
-                    };
-                    text += `<example>\nUser: ${b.question || "..."}\nAssistant: \n${JSON.stringify(ansObj, null, 2)}\n</example>\n\n`;
-                } catch (e) {
-                    text += `<example>\nUser: ${b.question || "..."}\nAssistant: (Invalid JSON in Filled Form)\n</example>\n\n`;
-                }
-            } else if (b.type === 'tag') {
-                const tag = (b.label || 'Tag').trim().replace(/[^a-z0-9]/gi, '');
-                const content = buildPrompt(b.blocks || "").trim();
-                if (tag) text += `<${tag}>\n${content}\n</${tag}>\n\n`;
+                html += `<div style="border:1px solid var(--border); padding:8px; margin:8px 0;">
+                    <p><strong>Example Case:</strong></p>
+                    <p><em>Question:</em> ${b.question}</p>
+                    <p><em>Answer:</em> ${b.answer}</p>
+                    <p><em>Form JSON:</em> <code>${b.filledForm}</code></p>
+                </div><br>`;
             }
+            if (b.blocks) html += buildPromptHtml(b.blocks);
         });
-        return text;
+        return html;
     };
 
-    agent.agentDefinition = buildPrompt(agent.agentBlocks || []).trim();
-    const el = document.getElementById('det-agent-def');
-    if (el) el.value = agent.agentDefinition;
+    const finalHtml = buildPromptHtml(agent.agentBlocks || []);
+    const previewEl = document.getElementById('agent-def-preview');
+    if (!previewEl) return; 
+
+    previewEl.innerHTML = finalHtml || '<p style="color:var(--text-dim); font-style:italic;">Blocks will generate the definition here...</p>';
+    agent.agentDefinition = htmlToMarkdown(finalHtml); 
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -1305,6 +1514,8 @@ function deleteAgent(idx) {
     state.agents.splice(idx, 1);
     showAgentsList();
     saveAll();
+    clearOrchEditors();
+    clearAgentEditors();
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -1338,7 +1549,7 @@ function showAgentDetail(idx) {
     generateAgentPreview();
 
     document.getElementById('det-agent-name').value = agent.agentName;
-    document.getElementById('det-agent-def').value = agent.agentDefinition || '';
+    // document.getElementById('det-agent-def').value = agent.agentDefinition || ''; // Replaced by Quill
 
     document.getElementById('det-agent-name').onchange = function () {
         agent.agentName = this.value;
