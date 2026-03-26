@@ -618,8 +618,41 @@ let _agentEditors = {};
 let _orchPreviewEditor = null;
 let _agentPreviewEditor = null;
 
-function clearOrchEditors() { _orchEditors = {}; }
 function clearAgentEditors() { _agentEditors = {}; }
+
+function flushAgentEditors() {
+    // For Orchestrator: update state blocks with latest Quill contents
+    state.orchestratorBlocks.forEach((b, i) => {
+        if (b.type === 'instruction') {
+            const id = `orch-editor-${i}`;
+            if (_orchEditors[id] && _orchEditors[id].root) b.text = _orchEditors[id].root.innerHTML;
+        } else if (b.type === 'routing' && b.routes) {
+            b.routes.forEach((r, ri) => {
+                const id = `orch-cond-editor-${i}-${ri}`;
+                if (_orchEditors[id] && _orchEditors[id].root) r.condition = _orchEditors[id].root.innerHTML;
+            });
+        }
+    });
+
+    // For Agents: update state blocks with latest Quill contents
+    const syncAgent = (list) => {
+        list.forEach(b => {
+           if (b.type === 'instruction') {
+               const id = `agent-editor-${b._id}`;
+               if (_agentEditors[id] && _agentEditors[id].root) b.text = _agentEditors[id].root.innerHTML;
+           } else if (b.type === 'toolMap' && b.routes) {
+               b.routes.forEach((r, ri) => {
+                   const id = `agent-cond-editor-${b._id}-${ri}`;
+                   if (_agentEditors[id] && _agentEditors[id].root) r.condition = _agentEditors[id].root.innerHTML;
+               });
+           }
+           if (b.blocks) syncAgent(b.blocks);
+        });
+    };
+    if (state.currentAgent !== null && state.agents[state.currentAgent]) {
+        syncAgent(state.agents[state.currentAgent].agentBlocks || []);
+    }
+}
 
 function initQuill(id, initialValue, onChange) {
     if (typeof Quill === 'undefined') {
@@ -712,6 +745,8 @@ function updateOrchRoute(blockIdx, routeIdx, prop, val) {
 let _orchDraggedIdx = null;
 
 function renderOrchBlocks() {
+    flushAgentEditors(); // Persist all editor content to state first
+    _orchEditors = {};   // Then clear the registry to allow new DIVs to be initialized
     const container = document.getElementById('orch-blocks-container');
     if (!container) return;
 
@@ -1069,10 +1104,20 @@ function renderAgentBlocks() {
     if (!container || state.currentAgent === null) return;
     const agent = state.agents[state.currentAgent];
 
-    // Reset editor map for Agent blocks
-    _agentEditors = {};
+    // Normalize legacy toolMap data
+    const normalize = (list) => {
+        list.forEach(b => {
+            if (b.type === 'toolMap') {
+                if (!b.routes || !Array.isArray(b.routes)) {
+                    b.routes = [{ targetTool: b.targetTool || '', condition: b.condition || '' }];
+                }
+            }
+            if (b.blocks) normalize(b.blocks);
+        });
+    };
+    normalize(agent.agentBlocks || []);
 
-    // Refresh tools datalist
+    _agentEditors = {}; // Reset editor map
     const dl = document.getElementById('tools-datalist');
     if (dl) {
         dl.innerHTML = (agent.tools || []).map(t => `<option value="${escHtml(t.toolName)}">`).join('');
