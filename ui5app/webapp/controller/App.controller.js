@@ -53,7 +53,6 @@ sap.ui.define([
             var oResultData = {
                 intent: null,
                 bigForm: null,
-                function: null,
                 configFlow: null
             };
 
@@ -71,13 +70,6 @@ sap.ui.define([
                 });
             });
 
-            var p3 = new Promise(function (resolve) {
-                oModel.read("/ToolFunction('" + sToolName + "')", {
-                    success: function (oData) { oResultData.function = oData; resolve(); },
-                    error: function () { resolve(); }
-                });
-            });
-
             var p4 = new Promise(function (resolve) {
                 oModel.read("/WorkflowConfig('" + sToolName + "')", {
                     success: function (oData) { oResultData.configFlow = oData; resolve(); },
@@ -85,7 +77,7 @@ sap.ui.define([
                 });
             });
 
-            Promise.all([p1, p2, p3, p4]).then(function () {
+            Promise.all([p1, p2, p4]).then(function () {
                 oSourceWindow.postMessage({
                     action: "toolDataReceived",
                     toolName: sToolName,

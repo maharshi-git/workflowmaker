@@ -1,0 +1,21 @@
+{
+    "OrchestratorDescription": "**General Instruction:**\nTest bot\n\nyou can choose any of these operations to be passed as destination. Please ask for clarification in case of confusion.\n\n- **helloBrotherAgent** - if: Test block",
+    "OrchestratorBlocks": [
+        {
+            "type": "instruction",
+            "label": "General Instruction",
+            "text": "<p>Test bot</p>"
+        },
+        {
+            "type": "routing",
+            "header": "you can choose any of these operations to be passed as destination. Please ask for clarification in case of confusion.",
+            "routes": [
+                {
+                    "targetAgent": "helloBrotherAgent",
+                    "condition": "<p>Test block</p>"
+                }
+            ]
+        }
+    ],
+    "useBlockHeaders": false
+}

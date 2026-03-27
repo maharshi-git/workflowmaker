@@ -18,10 +18,6 @@
                 {
                     "targetAgent": "OTC_Agent",
                     "condition": "<p>something2</p>"
-                },
-                {
-                    "targetAgent": "testagent",
-                    "condition": "<p>something3</p>"
                 }
             ]
         }

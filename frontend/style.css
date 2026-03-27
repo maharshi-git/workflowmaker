@@ -1889,6 +1889,7 @@ select.form-input {
     border-color: var(--border) !important;
     border-radius: var(--radius-sm) var(--radius-sm) 0 0;
 }
+
 .ql-container.ql-snow {
     border-color: var(--border) !important;
     background: var(--bg-input) !important;
@@ -1896,52 +1897,66 @@ select.form-input {
     font-family: inherit !important;
     border-radius: 0 0 var(--radius-sm) var(--radius-sm);
 }
+
 .ql-snow .ql-stroke {
     stroke: var(--text-dim) !important;
 }
+
 .ql-snow .ql-fill {
     fill: var(--text-dim) !important;
 }
+
 .ql-snow .ql-picker {
     color: var(--text-dim) !important;
 }
 
 /* Preview specific: hide toolbar, keep only container */
-#orchestrator-def-preview .ql-toolbar, #agent-def-preview .ql-toolbar {
+#orchestrator-def-preview .ql-toolbar,
+#agent-def-preview .ql-toolbar {
     display: none !important;
 }
-#orchestrator-def-preview .ql-container, #agent-def-preview .ql-container {
+
+#orchestrator-def-preview .ql-container,
+#agent-def-preview .ql-container {
     border-radius: var(--radius-sm) !important;
     border: none !important;
 }
+
 .preview-scroll-container {
-    height: 40vh; 
-    min-height: 350px; 
+    height: 40vh;
+    min-height: 350px;
     padding: 24px;
-    background: var(--bg-elevated); 
-    border: 1px solid var(--border); 
-    border-radius: var(--radius-sm); 
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
     color: #e0e0e0;
     overflow-y: auto;
     font-size: 13.5px;
     line-height: 1.6;
 }
-.preview-scroll-container h3, .preview-scroll-container strong {
+
+.preview-scroll-container h3,
+.preview-scroll-container strong {
     color: var(--primary-light) !important;
 }
+
 .preview-scroll-container p {
     margin-bottom: 12px;
 }
+
 .preview-scroll-container ul {
     margin-left: 20px;
     margin-bottom: 16px;
     list-style-type: disc !important;
 }
+
 .preview-scroll-container li {
     margin-bottom: 6px;
     display: list-item !important;
 }
-.preview-scroll-container code, .preview-scroll-container pre {
+
+.preview-scroll-container code,
+.preview-scroll-container pre {
     background: rgba(0, 0, 0, 0.2);
     padding: 4px 8px;
     border-radius: 4px;
@@ -1949,6 +1964,101 @@ select.form-input {
     font-size: 12px;
     color: var(--secondary);
 }
+
 .dummy-hide {
     overflow-y: auto;
+}
+
+/* ── Agent Flow Maker (AF) Styling ───────────────────── */
+.af-node {
+    position: absolute;
+    min-width: 140px;
+    padding: 12px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    cursor: default;
+    user-select: none;
+    z-index: 10;
+    transition: border-color var(--transition);
+}
+
+.af-node:hover {
+    border-color: var(--primary-light);
+}
+
+.af-node.agent {
+    border-left: 4px solid var(--primary);
+}
+
+.af-node.tool {
+    border-left: 4px solid var(--secondary);
+}
+
+.af-node-boundary {
+    min-width: 48px !important;
+    height: 48px;
+    padding: 0 !important;
+    border-radius: 50% !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-surface) !important;
+    border: 2px solid var(--text-dim) !important;
+    color: var(--text-dim) !important;
+    box-shadow: none !important;
+}
+
+.af-node-boundary.start {
+    border-color: var(--text-dim) !important;
+}
+
+.af-node-boundary.end {
+    border-color: var(--text-dim) !important;
+}
+
+.dot {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--border);
+    cursor: crosshair;
+    transition: background var(--transition), transform var(--transition);
+}
+
+.dot:hover {
+    background: var(--primary-light);
+    transform: scale(1.3);
+}
+
+.dot.output {
+    right: -5px;
+    top: calc(50% - 5px);
+}
+
+.dot.input {
+    left: -5px;
+    top: calc(50% - 5px);
+}
+
+.af-palette-item:hover {
+    background: var(--bg-hover) !important;
+    border-color: var(--primary-light) !important;
+}
+
+.af-edge {
+    stroke: var(--text-dim);
+    stroke-width: 2.5;
+    fill: none;
+    transition: stroke var(--transition);
+}
+
+.af-edge:hover {
+    stroke: var(--primary-light);
+}
+
+stroke: var(--danger);
+stroke-width: 4;
 }

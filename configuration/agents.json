@@ -1,11 +1,6 @@
 {
     "agents": [
         {
-            "agentName": "OrchestratorAgent",
-            "agentDefinition": "You are an orchestrator agent responsible for routing user queries to the appropriate specialized agent. Route to the 'Successfactors' agent for any queries related to employee profiles or HR information. Route to the 'OTCAgent' for queries regarding order-to-cash (OTC) flows, inquiries, or disputes.",
-            "tools": []
-        },
-        {
             "agentName": "P2PAgent",
             "agentDefinition": "You are a P2P agent.\nGive details of purchase orders and stuff",
             "tools": [
@@ -118,7 +113,7 @@
         },
         {
             "agentName": "testagent",
-            "agentDefinition": "Instruction:\nsdfsdfsdf\n\nReturn the following fields:\n- prompt: <The QUestion asked>\n- answer: <for an answer based on what was asked>\n- readableAnswer: <an answer that can be read out>\n- filledForm: <Mandatory field. The tool will return a blank json. Filled form will contain that same json with the values filled with information provided by the user. Keep the values \"\" if user has not provided. the returned JSON must contain every field returned by the tool>\n- bigForm: Default set to true\n- hasUpload: Default set to false\n- masterEntity: \n- toolCalled: <The tool called. tool name should be exactly same>\n- buttons: <Array of objects with probable answers. Each object will have one property called text:<possible answer>>\n\nInstruction:\nDO NOT autofill any values. Keep them blank if not provided",
+            "agentDefinition": "**Instruction:**\nsdfsdfsdf\n\nBased on the user query, choose the most appropriate tool from the following map:\n\n- **read_po** - if: etst\n\n- **testtool2** - if: testest\n\nReturn the following fields:\n\n- **prompt**: \n- **answer**: \n- **readableAnswer**: \n- **filledForm**: \n- **bigForm**: Default set to true\n- **hasUpload**: Default set to false\n- **masterEntity**: \n- **toolCalled**: \n- **buttons**: >\n\n                    **Example Case:**\n\n                    _Question:_ I want to get the details of purchase order 4500001968\n\n                    _Answer:_ You have provided the purchase order to be 4500001968, let me search and get it for you\n\n                    _Form JSON:_ {\"PurchaseOrder\": \"4500001968\"}",
             "tools": [
                 {
                     "toolName": "testagenttool",
@@ -415,6 +410,62 @@
                             "to": "nmn0rjgc9a1rx"
                         }
                     ]
+                },
+                {
+                    "toolName": "read_po",
+                    "toolDefinition": "Get the details of a purchase order",
+                    "formToBeSent": {
+                        "PurchaseOrder": ""
+                    },
+                    "active": true,
+                    "defaultReportView": true,
+                    "advancedCodeExec": true,
+                    "title": "",
+                    "operationType": "CRUD",
+                    "operationSubtype": "READ",
+                    "knowledge": "",
+                    "appLink": "",
+                    "staticInstruction": "",
+                    "apiCalls": [],
+                    "graphNodes": [
+                        {
+                            "id": "nmn50z66kvzff",
+                            "type": "insertPayload",
+                            "x": 10,
+                            "y": 164,
+                            "payload": "{\n  \"id\": 1\n}"
+                        },
+                        {
+                            "id": "nmn50z66k8s6v",
+                            "type": "apiCall",
+                            "x": 323,
+                            "y": 5,
+                            "serviceName": "ZAPI_PURCHASEORDER_SRV",
+                            "entitySet": "A_PurchaseOrder",
+                            "crudType": "READ",
+                            "apiType": "oData",
+                            "oDataType": "Entity",
+                            "expands": []
+                        },
+                        {
+                            "id": "nmn50z66kqw42",
+                            "type": "returnObject",
+                            "x": 600,
+                            "y": 150,
+                            "returnType": "default",
+                            "returnLabels": []
+                        }
+                    ],
+                    "graphEdges": [
+                        {
+                            "from": "nmn50z66kvzff",
+                            "to": "nmn50z66k8s6v"
+                        },
+                        {
+                            "from": "nmn50z66k8s6v",
+                            "to": "nmn50z66kqw42"
+                        }
+                    ]
                 }
             ],
             "agentBlocks": [
@@ -422,7 +473,23 @@
                     "_id": "nmn4ely7j6w2f",
                     "type": "instruction",
                     "label": "Instruction",
-                    "text": "sdfsdfsdf"
+                    "text": "<p>sdfsdfsdf</p>"
+                },
+                {
+                    "_id": "nmn50jg9airko",
+                    "type": "toolMap",
+                    "targetTool": "read_po",
+                    "condition": "This tool gets called when user wants to get the details of a purchase order/ Purchase orders",
+                    "routes": [
+                        {
+                            "targetTool": "read_po",
+                            "condition": "<p>etst</p>"
+                        },
+                        {
+                            "targetTool": "testtool2",
+                            "condition": "<p>testest</p>"
+                        }
+                    ]
                 },
                 {
                     "_id": "nmn4em0p9n9dr",
@@ -467,10 +534,22 @@
                     ]
                 },
                 {
-                    "_id": "nmn4emwosv0kb",
-                    "type": "instruction",
-                    "label": "Instruction",
-                    "text": "DO NOT autofill any values. Keep them blank if not provided"
+                    "_id": "nmn4zp59sy6uq",
+                    "type": "oneShot",
+                    "question": "I want to get the details of purchase order 4500001968",
+                    "prompt": "I want to get the details of purchase order 4500001968",
+                    "answer": "You have provided the purchase order to be 4500001968, let me search and get it for you",
+                    "readableAnswer": "Hold on, I am searching for your purchase order numberd 4500001968",
+                    "filledForm": "{\"PurchaseOrder\": \"4500001968\"}",
+                    "bigForm": true,
+                    "hasUpload": false,
+                    "masterEntity": "A_PurchaseOrder",
+                    "toolCalled": "read_po",
+                    "buttons": [
+                        "Create a Purchase Order?",
+                        "",
+                        ""
+                    ]
                 }
             ]
         }

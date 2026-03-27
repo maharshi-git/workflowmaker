@@ -320,6 +320,8 @@ function applyDefaultWorkflow() {
 
 // ── State ──────────────────────────────────────────────────
 let state = {
+    personaId: null,
+    personas: [],
     agents: [],
     currentAgent: null,
     currentTool: null,
@@ -351,28 +353,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Default to light theme
     applyTheme(true);
 
-    try {
-        state.agents = await fetch('/api/agents').then(r => r.json());
-        showAgentsList();
-    } catch (e) { showToast('Failed to load agents', 'error'); }
-
-    try {
-        const orch = await fetch('/api/orchestrator').then(r => r.json());
-        if (orch && orch.OrchestratorBlocks) {
-            state.orchestratorBlocks = orch.OrchestratorBlocks;
-        } else if (orch && orch.OrchestratorDescription) {
-            // Fallback for legacy data
-            state.orchestratorBlocks = [{ type: 'instruction', label: 'Instruction', text: orch.OrchestratorDescription }];
-        }
-
-        const headerToggle = document.getElementById('orch-use-headers');
-        if (headerToggle && orch && orch.useBlockHeaders !== undefined) {
-            headerToggle.checked = !!orch.useBlockHeaders;
-        }
-
-        renderOrchBlocks();
-        generateOrchPreview();
-    } catch (e) { console.error('Failed to load orchestrator', e); }
+    await loadPersonas();
 
     // Auto-expand textareas
     document.addEventListener('input', e => {
@@ -497,10 +478,230 @@ document.addEventListener('DOMContentLoaded', async () => {
             showToast('API Test completed', 'success');
         }
     });
-
-    // 2. Match OS preference ONLY if not explicitly overridden by UI5 above
-    // (though applyTheme(true) above already sets it to light by default)
 });
+
+// ── Persona Management ─────────────────────────
+async function loadPersonas() {
+    try {
+        state.personas = await fetch('/api/personas').then(r => r.json());
+        renderPersonasTable();
+        if (!state.personaId) {
+            showPersonasView();
+        }
+    } catch (e) { showToast('Failed to load personas', 'error'); }
+}
+
+function renderPersonasTable() {
+    const tbody = document.querySelector('#personas-table tbody');
+    if (!tbody) return;
+
+    tbody.innerHTML = state.personas.map((p, i) => `
+        <tr onclick="selectPersona('${p.personaId}')" style="cursor: pointer;">
+            <td>${i + 1}</td>
+            <td style="font-weight:600; color:var(--primary-light)">${escHtml(p.personaName)}</td>
+            <td style="color:var(--text-muted)">${escHtml(p.personaDescription)}</td>
+            <td>
+                <button class="btn btn-outline btn-sm" onclick="event.stopPropagation(); deletePersona('${p.personaId}')">Delete</button>
+            </td>
+        </tr>
+    `).join('') || '<tr><td colspan="4" style="text-align:center; padding:32px; color:var(--text-dim);">No personas found. Create one to get started.</td></tr>';
+}
+
+function showPersonasView() {
+    state.currentAgent = null;
+    state.currentTool = null;
+    showView('view-personas');
+    setBreadcrumb([{ label: 'Personas' }]);
+}
+
+async function selectPersona(personaId) {
+    state.personaId = personaId;
+    const persona = state.personas.find(p => p.personaId === personaId);
+    showToast(`Loading persona: ${persona ? persona.personaName : personaId}`, 'info');
+    
+    await loadPersonaData();
+    showAgentsList();
+}
+
+async function loadPersonaData() {
+    try {
+        state.agents = await fetch(`/api/agents?personaId=${state.personaId}`).then(r => r.json());
+        
+        const orch = await fetch(`/api/orchestrator?personaId=${state.personaId}`).then(r => r.json());
+        if (orch && orch.OrchestratorBlocks) {
+            state.orchestratorBlocks = orch.OrchestratorBlocks;
+        } else if (orch && orch.OrchestratorDescription) {
+            state.orchestratorBlocks = [{ type: 'instruction', label: 'Instruction', text: orch.OrchestratorDescription }];
+        } else {
+            state.orchestratorBlocks = [];
+        }
+
+        const headerToggle = document.getElementById('orch-use-headers');
+        if (headerToggle && orch && orch.useBlockHeaders !== undefined) {
+            headerToggle.checked = !!orch.useBlockHeaders;
+        }
+
+        renderOrchBlocks();
+        generateOrchPreview();
+    } catch (e) { 
+        console.error('Failed to load persona data', e);
+        showToast('Error loading configuration', 'error');
+    }
+}
+
+function showCreatePersonaModal() {
+    document.getElementById('new-persona-name').value = '';
+    document.getElementById('new-persona-desc').value = '';
+    
+    // Populate templates dropdown
+    const select = document.getElementById('new-persona-template');
+    if (select) {
+        select.innerHTML = '<option value="">-- No Template (Blank) --</option>' + 
+            state.personas.map(p => `<option value="${p.personaId}">${escHtml(p.personaName)}</option>`).join('');
+    }
+    
+    document.getElementById('create-persona-modal').classList.remove('hidden');
+}
+
+function closeCreatePersonaModal() {
+    document.getElementById('create-persona-modal').classList.add('hidden');
+}
+
+async function createNewPersona() {
+    const name = document.getElementById('new-persona-name').value.trim();
+    const desc = document.getElementById('new-persona-desc').value.trim();
+    const templateId = document.getElementById('new-persona-template').value;
+    
+    if (!name) return showToast('Please enter a name', 'error');
+
+    try {
+        const res = await fetch('/api/personas', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                personaName: name, 
+                personaDescription: desc, 
+                templatePersonaId: templateId || null 
+            })
+        }).then(r => r.json());
+
+        closeCreatePersonaModal();
+        showToast('Persona created successfully', 'success');
+        await loadPersonas();
+        await selectPersona(res.personaId);
+    } catch (e) { showToast('Failed to create persona', 'error'); }
+}
+
+async function deletePersona(personaId) {
+    if (!confirm('Are you sure you want to delete this persona?')) return;
+    try {
+        await fetch(`/api/personas/${personaId}`, { method: 'DELETE' });
+        showToast('Persona deleted', 'success');
+        await loadPersonas();
+        if (state.personaId === personaId) {
+            state.personaId = null;
+            showPersonasView();
+        }
+    } catch (e) { showToast('Failed to delete persona', 'error'); }
+}
+
+// ── Import/Template Logic ─────────────────────────
+function showImportAgentModal() {
+    const select = document.getElementById('import-agent-persona-select');
+    select.innerHTML = '<option value="">-- Select Persona --</option>' + 
+        state.personas.map(p => `<option value="${p.personaId}">${escHtml(p.personaName)}</option>`).join('');
+    document.getElementById('import-agent-select').innerHTML = '<option value="">-- Select Agent --</option>';
+    document.getElementById('import-agent-modal').classList.remove('hidden');
+}
+function closeImportAgentModal() { document.getElementById('import-agent-modal').classList.add('hidden'); }
+
+async function onImportAgentPersonaChange() {
+    const pid = document.getElementById('import-agent-persona-select').value;
+    if (!pid) return;
+    const agents = await fetch(`/api/agents?personaId=${pid}`).then(r => r.json());
+    document.getElementById('import-agent-select').innerHTML = agents.map(a => `<option value="${escHtml(a.agentName)}">${escHtml(a.agentName)}</option>`).join('');
+}
+
+async function importAgentAction() {
+    const pid = document.getElementById('import-agent-persona-select').value;
+    const name = document.getElementById('import-agent-select').value;
+    if (!pid || !name) return showToast('Select persona and agent', 'error');
+
+    const agent = await fetch(`/api/agents/${name}?personaId=${pid}`).then(r => r.json());
+    state.agents.push(agent);
+    showToast(`Imported ${name}`, 'success');
+    closeImportAgentModal();
+    showAgentsList();
+    saveAll();
+}
+
+function showImportToolModal() {
+    const select = document.getElementById('import-tool-persona-select');
+    select.innerHTML = '<option value="">-- Select Persona --</option>' + 
+        state.personas.map(p => `<option value="${p.personaId}">${escHtml(p.personaName)}</option>`).join('');
+    
+    // Default current persona for quick selection
+    select.value = state.personaId || "";
+    onImportToolPersonaChange();
+
+    document.getElementById('import-tool-modal').classList.remove('hidden');
+}
+function closeImportToolModal() { document.getElementById('import-tool-modal').classList.add('hidden'); }
+
+async function onImportToolPersonaChange() {
+    const pid = document.getElementById('import-tool-persona-select').value;
+    if (!pid) return;
+    const agents = await fetch(`/api/agents?personaId=${pid}`).then(r => r.json());
+    document.getElementById('import-tool-agent-select').innerHTML = '<option value="">-- Select Agent --</option>' + 
+        agents.map(a => `<option value="${escHtml(a.agentName)}">${escHtml(a.agentName)}</option>`).join('');
+    document.getElementById('import-tool-select').innerHTML = '';
+}
+
+async function onImportToolAgentChange() {
+    const pid = document.getElementById('import-tool-persona-select').value;
+    const name = document.getElementById('import-tool-agent-select').value;
+    if (!pid || !name) return;
+    const agent = await fetch(`/api/agents/${name}?personaId=${pid}`).then(r => r.json());
+    document.getElementById('import-tool-select').innerHTML = (agent.tools || []).map(t => `<option value="${escHtml(t.toolName)}">${escHtml(t.toolName)}</option>`).join('');
+}
+
+async function importToolAction() {
+    const pid = document.getElementById('import-tool-persona-select').value;
+    const agName = document.getElementById('import-tool-agent-select').value;
+    const tlName = document.getElementById('import-tool-select').value;
+    if (!pid || !agName || !tlName) return showToast('Select persona, agent and tool', 'error');
+
+    const agent = await fetch(`/api/agents/${agName}?personaId=${pid}`).then(r => r.json());
+    const tool = agent.tools.find(t => t.toolName === tlName);
+    
+    if (state.currentAgent !== null && state.agents[state.currentAgent]) {
+        state.agents[state.currentAgent].tools.push(tool);
+        showToast(`Imported ${tlName}`, 'success');
+        closeImportToolModal();
+        renderToolsList();
+        saveAll();
+    }
+}
+
+function showImportOrchModal() {
+    const select = document.getElementById('import-orch-persona-select');
+    select.innerHTML = state.personas.map(p => `<option value="${p.personaId}">${escHtml(p.personaName)}</option>`).join('');
+    document.getElementById('import-orch-modal').classList.remove('hidden');
+}
+function closeImportOrchModal() { document.getElementById('import-orch-modal').classList.add('hidden'); }
+
+async function importOrchAction() {
+    const pid = document.getElementById('import-orch-persona-select').value;
+    if (!pid) return;
+    const orch = await fetch(`/api/orchestrator?personaId=${pid}`).then(r => r.json());
+    if (orch && orch.OrchestratorBlocks) {
+        state.orchestratorBlocks = orch.OrchestratorBlocks;
+        renderOrchBlocks();
+        generateOrchPreview();
+        showToast('Orchestrator template applied', 'success');
+        closeImportOrchModal();
+    }
+}
 
 async function saveOrchestrator() {
     generateOrchPreview(); // Ensure HTML is latest
@@ -510,7 +711,7 @@ async function saveOrchestrator() {
 
     try {
         const useHeaders = document.getElementById('orch-use-headers') ? document.getElementById('orch-use-headers').checked : false;
-        const res = await fetch('/api/orchestrator', {
+        const res = await fetch(`/api/orchestrator?personaId=${state.personaId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -566,7 +767,7 @@ function htmlToMarkdown(html) {
     if (!html) return '';
     const div = document.createElement('div');
     div.innerHTML = html;
-    
+
     let md = "";
 
     const process = (node) => {
@@ -637,16 +838,16 @@ function flushAgentEditors() {
     // For Agents: update state blocks with latest Quill contents
     const syncAgent = (list) => {
         list.forEach(b => {
-           if (b.type === 'instruction') {
-               const id = `agent-editor-${b._id}`;
-               if (_agentEditors[id] && _agentEditors[id].root) b.text = _agentEditors[id].root.innerHTML;
-           } else if (b.type === 'toolMap' && b.routes) {
-               b.routes.forEach((r, ri) => {
-                   const id = `agent-cond-editor-${b._id}-${ri}`;
-                   if (_agentEditors[id] && _agentEditors[id].root) r.condition = _agentEditors[id].root.innerHTML;
-               });
-           }
-           if (b.blocks) syncAgent(b.blocks);
+            if (b.type === 'instruction') {
+                const id = `agent-editor-${b._id}`;
+                if (_agentEditors[id] && _agentEditors[id].root) b.text = _agentEditors[id].root.innerHTML;
+            } else if (b.type === 'toolMap' && b.routes) {
+                b.routes.forEach((r, ri) => {
+                    const id = `agent-cond-editor-${b._id}-${ri}`;
+                    if (_agentEditors[id] && _agentEditors[id].root) r.condition = _agentEditors[id].root.innerHTML;
+                });
+            }
+            if (b.blocks) syncAgent(b.blocks);
         });
     };
     if (state.currentAgent !== null && state.agents[state.currentAgent]) {
@@ -688,10 +889,10 @@ function addOrchBlock(type) {
     if (type === 'instruction') {
         state.orchestratorBlocks.push({ type: 'instruction', label: 'General Instruction', text: '' });
     } else {
-        state.orchestratorBlocks.push({ 
-            type: 'routing', 
+        state.orchestratorBlocks.push({
+            type: 'routing',
             header: 'you can choose any of these operations to be passed as destination. Please ask for clarification in case of confusion.',
-            routes: [{ targetAgent: '', condition: '' }] 
+            routes: [{ targetAgent: '', condition: '' }]
         });
     }
     renderOrchBlocks();
@@ -727,7 +928,7 @@ function removeOrchRoute(blockIdx, routeIdx) {
 
 function updateOrchRoute(blockIdx, routeIdx, prop, val) {
     const b = state.orchestratorBlocks[blockIdx];
-    
+
     // Check for duplicates when updating targetAgent
     if (prop === 'targetAgent' && val.trim()) {
         const isDuplicate = b.routes.some((r, i) => i !== routeIdx && r.targetAgent === val);
@@ -755,7 +956,7 @@ function renderOrchBlocks() {
         if (b.type === 'routing' && !b.routes) {
             b.routes = [{ targetAgent: b.targetAgent || '', condition: b.condition || '' }];
         }
-        
+
         const borderStyle = b.type === 'instruction' ? 'border-color: var(--secondary); background: rgba(59, 130, 246, 0.03);' : 'border-color: var(--warning); background: rgba(245, 158, 11, 0.03);';
         const labelText = b.type === 'instruction' ? 'Instruction Block' : 'Routing Step';
 
@@ -879,7 +1080,7 @@ function addAgentBlock(type, parentId = null) {
     const agent = state.agents[state.currentAgent];
     const newBlock = { _id: _uid(), type };
     if (type === 'instruction') { newBlock.label = 'Instruction'; newBlock.text = ''; }
-    else if (type === 'returnFields') { 
+    else if (type === 'returnFields') {
         newBlock.showJson = false;
         newBlock.fields = [
             { name: 'prompt', description: '<The QUestion asked>' },
@@ -895,12 +1096,12 @@ function addAgentBlock(type, parentId = null) {
     }
     else if (type === 'json') { newBlock.text = '{\n  "status": "success"\n}'; }
     else if (type === 'tag') { newBlock.label = 'NewTag'; newBlock.blocks = []; }
-    else if (type === 'toolMap') { 
+    else if (type === 'toolMap') {
         newBlock.header = 'Based on the user query, choose the most appropriate tool from the following map:';
-        newBlock.routes = [{ targetTool: '', condition: '' }]; 
+        newBlock.routes = [{ targetTool: '', condition: '' }];
     }
-    else if (type === 'oneShot') { 
-        newBlock.question = ''; 
+    else if (type === 'oneShot') {
+        newBlock.question = '';
         newBlock.prompt = '';
         newBlock.answer = '';
         newBlock.readableAnswer = '';
@@ -1395,10 +1596,10 @@ function generateAgentPreview() {
 
     const finalHtml = buildPromptHtml(agent.agentBlocks || []);
     const previewEl = document.getElementById('agent-def-preview');
-    if (!previewEl) return; 
+    if (!previewEl) return;
 
     previewEl.innerHTML = finalHtml || '<p style="color:var(--text-dim); font-style:italic;">Blocks will generate the definition here...</p>';
-    agent.agentDefinition = htmlToMarkdown(finalHtml); 
+    agent.agentDefinition = htmlToMarkdown(finalHtml);
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -1428,7 +1629,7 @@ function toggleCollapse(headerEl) {
 function showAgentsList() {
     state.currentAgent = null;
     state.currentTool = null;
-    setBreadcrumb([{ label: 'Agents' }]);
+    setBreadcrumb([{ label: 'Personas', onclick: 'showPersonasView()' }, { label: 'Agents' }]);
     showView('view-agents');
 
     // Update datalist for orchestration blocks
@@ -3602,7 +3803,7 @@ if (document.readyState === 'loading') {
 async function saveAll() {
     syncCurrentEdits();
     try {
-        const res = await fetch('/api/agents', {
+        const res = await fetch(`/api/agents?personaId=${state.personaId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ agents: state.agents }),

@@ -1,0 +1,77 @@
+{
+    "agents": [
+        {
+            "agentName": "P2PAgent",
+            "agentDefinition": "**Instruction:**\nYou are a P2P agent.\nGive details of purchase orders and stuff",
+            "tools": [
+                {
+                    "toolName": "read_employee_profile",
+                    "toolDefinition": "Reads the employee profile from the successfactors database",
+                    "formToBeSent": {
+                        "PoNumber": "",
+                        "Area": "",
+                        "to_CCCode": [
+                            {
+                                "CompanyCode": "",
+                                "CostCenter": "",
+                                "to_CCArea": [
+                                    {
+                                        "ControllingArea": "",
+                                        "Company": ""
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                },
+                {
+                    "toolName": "read_po",
+                    "toolDefinition": "",
+                    "formToBeSent": {
+                        "PurchaseOrder": ""
+                    },
+                    "active": true,
+                    "title": "PO Operations",
+                    "operationType": "CRUD",
+                    "operationSubtype": "READ",
+                    "apiCalls": [],
+                    "defaultReportView": true,
+                    "knowledge": "fdgfd",
+                    "appLink": "hgfhf",
+                    "staticInstruction": "jghjgj"
+                }
+            ],
+            "agentBlocks": [
+                {
+                    "_id": "nmn974gypfy0t",
+                    "type": "instruction",
+                    "label": "Instruction",
+                    "text": "<p>You are a P2P agent.\nGive details of purchase orders and stuff</p>"
+                }
+            ]
+        },
+        {
+            "agentName": "tetsssss",
+            "agentDefinition": "",
+            "tools": [
+                {
+                    "toolName": "read_po",
+                    "toolDefinition": "",
+                    "formToBeSent": {
+                        "PurchaseOrder": ""
+                    },
+                    "active": true,
+                    "title": "PO Operations",
+                    "operationType": "CRUD",
+                    "operationSubtype": "READ",
+                    "apiCalls": [],
+                    "defaultReportView": true,
+                    "knowledge": "fdgfd",
+                    "appLink": "hgfhf",
+                    "staticInstruction": "jghjgj"
+                }
+            ],
+            "agentBlocks": []
+        }
+    ]
+}

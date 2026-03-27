@@ -1,0 +1,115 @@
+{
+    "agents": [
+        {
+            "agentName": "P2PAgent",
+            "agentDefinition": "You are a P2P agent.\nGive details of purchase orders and stuff",
+            "tools": [
+                {
+                    "toolName": "read_employee_profile",
+                    "toolDefinition": "Reads the employee profile from the successfactors database",
+                    "formToBeSent": {
+                        "PoNumber": "",
+                        "Area": "",
+                        "to_CCCode": [
+                            {
+                                "CompanyCode": "",
+                                "CostCenter": "",
+                                "to_CCArea": [
+                                    {
+                                        "ControllingArea": "",
+                                        "Company": ""
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                },
+                {
+                    "toolName": "read_po",
+                    "toolDefinition": "",
+                    "formToBeSent": {
+                        "PurchaseOrder": ""
+                    },
+                    "active": true,
+                    "title": "PO Operations",
+                    "operationType": "CRUD",
+                    "operationSubtype": "READ",
+                    "apiCalls": [],
+                    "defaultReportView": true,
+                    "knowledge": "fdgfd",
+                    "appLink": "hgfhf",
+                    "staticInstruction": "jghjgj"
+                }
+            ]
+        },
+        {
+            "agentName": "OTC_Agent",
+            "agentDefinition": "You are an OTC Agent.",
+            "tools": [
+                {
+                    "toolName": "read_sales_order",
+                    "toolDefinition": "GEts triggered with someone asks for Sales order Details",
+                    "formToBeSent": {
+                        "accessGroupLevel": 0,
+                        "accessUserType": "",
+                        "excludeSelf": false,
+                        "includeSelf": false,
+                        "myFilter": "",
+                        "relationRole": "",
+                        "ruleId": 0,
+                        "status": 0,
+                        "targetGroupLevel": 0,
+                        "targetUserType": "",
+                        "accessGroups": [
+                            {
+                                "activeMembershipCount": 0,
+                                "createdBy": "",
+                                "groupID": 0,
+                                "groupName": "",
+                                "groupType": "",
+                                "lastModifiedDate": "",
+                                "staticGroup": false,
+                                "totalMemberCount": 0,
+                                "userType": ""
+                            }
+                        ]
+                    }
+                },
+                {
+                    "toolName": "read_rbp",
+                    "toolDefinition": "",
+                    "formToBeSent": {
+                        "lastModifiedBy": "",
+                        "lastModifiedDate": "",
+                        "roleDesc": "",
+                        "roleId": 0,
+                        "roleName": "",
+                        "userType": "",
+                        "permissions": [
+                            {
+                                "permissionId": 0,
+                                "permissionLongValue": 0,
+                                "permissionStringValue": "",
+                                "permissionType": ""
+                            }
+                        ],
+                        "rules": [
+                            {
+                                "accessGroupLevel": 0,
+                                "accessUserType": "",
+                                "excludeSelf": false,
+                                "includeSelf": false,
+                                "myFilter": "",
+                                "relationRole": "",
+                                "ruleId": 0,
+                                "status": 0,
+                                "targetGroupLevel": 0,
+                                "targetUserType": ""
+                            }
+                        ]
+                    }
+                }
+            ]
+        }
+    ]
+}

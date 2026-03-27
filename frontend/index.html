@@ -31,6 +31,15 @@
             <h1>Workflow <span class="accent">Maker</span></h1>
         </div>
         <div class="header-actions">
+            <button class="btn btn-outline" onclick="showPersonasView()" title="Switch Persona">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
+                    <circle cx="9" cy="7" r="4" />
+                    <path d="M23 21v-2a4 4 0 00-3-3.87" />
+                    <path d="M16 3.13a4 4 0 010 7.75" />
+                </svg>
+                Personas
+            </button>
             <button class="btn btn-outline" onclick="toggleNativeTheme()" title="Toggle Theme">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <circle cx="12" cy="12" r="5" />
@@ -53,43 +62,85 @@
     </div>
 
     <main id="app-main">
-        <!-- ═══ View: Agents List ═══ -->
-        <div id="view-agents" class="view active">
+        <!-- ═══ View: Personas List ═══ -->
+        <div id="view-personas" class="view">
             <div class="view-toolbar">
-                <h2>Agents</h2>
+                <h2>Persona Management</h2>
+                <div style="display: flex; gap: 8px;">
+                     <button class="btn btn-primary" onclick="showCreatePersonaModal()">+ Create Persona</button>
+                </div>
+            </div>
+            <div class="card">
+                <div class="table-wrap">
+                    <table id="personas-table">
+                        <thead>
+                            <tr>
+                                <th width="40">#</th>
+                                <th>Persona Name</th>
+                                <th>Description</th>
+                                <th width="100">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Populated dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- ═══ View: Agents List ═══ -->
+        <div id="view-agents" class="view">
+            <div class="view-toolbar">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <button class="btn btn-outline btn-sm" onclick="showPersonasView()" title="Back to Personas" style="padding: 4px 8px; height: 32px; display: flex; align-items: center;">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/>
+                        </svg>
+                    </button>
+                    <h2>Agents</h2>
+                </div>
                 <div style="display: flex; gap: 8px;">
                     <input type="text" id="search-agents" class="form-input" placeholder="Search agents..."
                         oninput="showAgentsList()" style="width: 250px;">
+                    <button class="btn btn-outline" onclick="showImportAgentModal()" title="Import agent from another persona">Import</button>
                     <button class="btn btn-primary" onclick="addAgent()">+ Add Agent</button>
                 </div>
             </div>
 
             <!-- Orchestrator Definition -->
             <div class="card" style="margin-bottom: 24px;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 16px;">
+                <div
+                    style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 16px;">
                     <div style="display: flex; align-items: center; gap: 16px;">
                         <h3 style="margin:0;">Orchestrator Definition Builder</h3>
-                        <label style="display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; cursor: pointer; color: var(--primary-light);">
-                            <input type="checkbox" id="orch-use-headers" onchange="generateOrchPreview()" style="width:16px; height:16px; accent-color: var(--primary);"> 
+                        <label
+                            style="display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; cursor: pointer; color: var(--primary-light);">
+                            <input type="checkbox" id="orch-use-headers" onchange="generateOrchPreview()"
+                                style="width:16px; height:16px; accent-color: var(--primary);">
                             Add Block Header
                         </label>
                     </div>
                     <div class="btn-row">
                         <button class="btn btn-outline btn-sm" onclick="addOrchBlock('instruction')">+ Instruction Block</button>
                         <button class="btn btn-outline btn-sm" onclick="addOrchBlock('routing')">+ Routing Block</button>
+                        <button class="btn btn-outline btn-sm" onclick="showImportOrchModal()">Import Template</button>
                         <button class="btn btn-primary btn-sm" onclick="saveOrchestrator()">Save Orchestrator</button>
                     </div>
                 </div>
-                
-                <div id="orch-blocks-container" style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px;">
+
+                <div id="orch-blocks-container"
+                    style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px;">
                     <!-- Blocks will be rendered here -->
                 </div>
 
                 <div style="border-top: 1px solid var(--border); padding-top: 12px; margin-top: 12px;">
-                    <label style="font-size: 11px; font-weight: 600; color: var(--text-muted); margin-bottom: 8px; display: block;">Generated System Text (Read-Only Preview)</label>
+                    <label
+                        style="font-size: 11px; font-weight: 600; color: var(--text-muted); margin-bottom: 8px; display: block;">Generated
+                        System Text (Read-Only Preview)</label>
                     <div id="orchestrator-def-preview" class="preview-scroll-container"></div>
                 </div>
-                
+
                 <datalist id="agents-datalist">
                     <!-- Populated dynamically -->
                 </datalist>
@@ -133,24 +184,31 @@
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
                         <label>Agent Definition Builder</label>
                         <div class="btn-row">
-                            <button class="btn btn-outline btn-sm" onclick="addAgentBlock('instruction')">+ Instruction</button>
-                            <button class="btn btn-outline btn-sm" onclick="addAgentBlock('returnFields')">+ Return Fields</button>
+                            <button class="btn btn-outline btn-sm" onclick="addAgentBlock('instruction')">+
+                                Instruction</button>
+                            <button class="btn btn-outline btn-sm" onclick="addAgentBlock('returnFields')">+ Return
+                                Fields</button>
                             <button class="btn btn-outline btn-sm" onclick="addAgentBlock('tag')">+ Tag Group</button>
-                            <button class="btn btn-outline btn-sm" onclick="addAgentBlock('toolMap')">+ Tool Map</button>
-                            <button class="btn btn-outline btn-sm" onclick="addAgentBlock('oneShot')">+ One-Shot</button>
+                            <button class="btn btn-outline btn-sm" onclick="addAgentBlock('toolMap')">+ Tool
+                                Map</button>
+                            <button class="btn btn-outline btn-sm" onclick="addAgentBlock('oneShot')">+
+                                One-Shot</button>
                             <button class="btn btn-outline btn-sm" onclick="addAgentBlock('json')">+ JSON</button>
                         </div>
                     </div>
-                    
-                    <div id="agent-blocks-container" style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px;">
+
+                    <div id="agent-blocks-container"
+                        style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px;">
                         <!-- Blocks Rendered Here -->
                     </div>
-                    
+
                     <datalist id="tools-datalist">
                         <!-- Populated dynamically based on current agent -->
                     </datalist>
 
-                    <label style="font-size: 11px; font-weight: 600; color: var(--text-muted); margin-bottom: 8px; display: block;">Generated Agent Definition (Read-Only Preview)</label>
+                    <label
+                        style="font-size: 11px; font-weight: 600; color: var(--text-muted); margin-bottom: 8px; display: block;">Generated
+                        Agent Definition (Read-Only Preview)</label>
                     <div id="agent-def-preview" class="preview-scroll-container"></div>
                 </div>
             </div>
@@ -159,6 +217,7 @@
                 <div style="display: flex; gap: 8px;">
                     <input type="text" id="search-tools" class="form-input" placeholder="Search tools..."
                         oninput="renderToolsList()" style="width: 250px;">
+                    <button class="btn btn-outline btn-sm" onclick="showImportToolModal()">Import</button>
                     <button class="btn btn-primary btn-sm" onclick="addTool()">+ Add Tool</button>
                 </div>
             </div>
@@ -728,9 +787,111 @@
         </div>
     </div>
 
+    <!-- Create Persona Modal -->
+    <div id="create-persona-modal" class="modal-overlay hidden" onclick="closeCreatePersonaModal()">
+        <div class="modal-content card" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h3>Create New Persona</h3>
+                <button class="modal-close" onclick="closeCreatePersonaModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group" style="margin-bottom: 12px;">
+                    <label>Persona Name</label>
+                    <input id="new-persona-name" class="form-input" placeholder="e.g. Sales Agent v2">
+                </div>
+                <div class="form-group" style="margin-bottom: 20px;">
+                    <label>Description</label>
+                    <textarea id="new-persona-desc" class="form-textarea" rows="3" placeholder="What is this persona for?"></textarea>
+                </div>
+                <div class="form-group" style="margin-bottom: 20px;">
+                    <label>Template (Copy from existing)</label>
+                    <select id="new-persona-template" class="form-input">
+                        <option value="">-- No Template (Blank) --</option>
+                    </select>
+                </div>
+                <div style="display: flex; justify-content: flex-end; gap: 12px;">
+                    <button class="btn btn-outline" onclick="closeCreatePersonaModal()">Cancel</button>
+                    <button class="btn btn-success" onclick="createNewPersona()">Create & Use</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="parser.js?v=2"></script>
     <script src="app.js?v=4"></script>
+    <!-- Import Agent Modal -->
+    <div id="import-agent-modal" class="modal-overlay hidden" onclick="closeImportAgentModal()">
+        <div class="modal-content card" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h3>Import Agent</h3>
+                <button class="modal-close" onclick="closeImportAgentModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Search Persona</label>
+                    <select id="import-agent-persona-select" class="form-input" onchange="onImportAgentPersonaChange()"></select>
+                </div>
+                <div class="form-group">
+                    <label>Select Agent</label>
+                    <select id="import-agent-select" class="form-input"></select>
+                </div>
+                <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 20px;">
+                    <button class="btn btn-outline" onclick="closeImportAgentModal()">Cancel</button>
+                    <button class="btn btn-success" onclick="importAgentAction()">Import Agent</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Import Tool Modal -->
+    <div id="import-tool-modal" class="modal-overlay hidden" onclick="closeImportToolModal()">
+        <div class="modal-content card" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h3>Import Tool</h3>
+                <button class="modal-close" onclick="closeImportToolModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Search Persona</label>
+                    <select id="import-tool-persona-select" class="form-input" onchange="onImportToolPersonaChange()"></select>
+                </div>
+                <div class="form-group">
+                    <label>Select Agent</label>
+                    <select id="import-tool-agent-select" class="form-input" onchange="onImportToolAgentChange()"></select>
+                </div>
+                <div class="form-group">
+                    <label>Select Tool</label>
+                    <select id="import-tool-select" class="form-input"></select>
+                </div>
+                <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 20px;">
+                    <button class="btn btn-outline" onclick="closeImportToolModal()">Cancel</button>
+                    <button class="btn btn-success" onclick="importToolAction()">Import Tool</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Import Orchestrator Modal -->
+    <div id="import-orch-modal" class="modal-overlay hidden" onclick="closeImportOrchModal()">
+        <div class="modal-content card" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h3>Import Orchestrator Template</h3>
+                <button class="modal-close" onclick="closeImportOrchModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Select Persona to copy Orchestrator from</label>
+                    <select id="import-orch-persona-select" class="form-input"></select>
+                </div>
+                <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 20px;">
+                    <button class="btn btn-outline" onclick="closeImportOrchModal()">Cancel</button>
+                    <button class="btn btn-success" onclick="importOrchAction()">Import Instructions</button>
+                </div>
+            </div>
+        </div>
+    </div>
 </body>
+</html>
 
 </html>
 

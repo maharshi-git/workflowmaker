@@ -1,0 +1,17 @@
+[
+    {
+        "personaId": "9c869c69-cd48-4a3f-b144-de680eadfd74",
+        "personaName": "Initial Persona",
+        "personaDescription": "The first persona created for workflow management."
+    },
+    {
+        "personaId": "342ffd7b-db6f-4d67-bf16-44e45cfc2807",
+        "personaName": "Successfactors",
+        "personaDescription": "Successfactors operations chatbot"
+    },
+    {
+        "personaId": "2631cf25-cda4-4697-b34e-572e130133c5",
+        "personaName": "persona2",
+        "personaDescription": "persona2"
+    }
+]

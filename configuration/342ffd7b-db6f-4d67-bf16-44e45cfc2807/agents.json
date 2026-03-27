@@ -1,0 +1,117 @@
+{
+    "agents": [
+        {
+            "agentName": "testagent",
+            "agentDefinition": "**Instruction:**\nsomething something\n\nReturn the following fields:\n\n- **prompt**: \n- **answer**: \n- **readableAnswer**: \n- **filledForm**: \n- **bigForm**: Default set to true\n- **hasUpload**: Default set to false\n- **masterEntity**: \n- **toolCalled**: \n- **buttons**: >",
+            "tools": [
+                {
+                    "toolName": "testtoolpersona",
+                    "toolDefinition": "",
+                    "formToBeSent": {
+                        "test": ""
+                    },
+                    "active": true,
+                    "defaultReportView": true,
+                    "advancedCodeExec": false,
+                    "operationType": "CRUD",
+                    "operationSubtype": "READ",
+                    "title": "",
+                    "knowledge": "",
+                    "appLink": "",
+                    "staticInstruction": "",
+                    "apiCalls": [],
+                    "graphNodes": [
+                        {
+                            "id": "nmn96ouvl8wc7",
+                            "type": "insertPayload",
+                            "x": 7,
+                            "y": 169,
+                            "payload": "{\n  \"id\": 1\n}"
+                        },
+                        {
+                            "id": "nmn96ouvl8ps3",
+                            "type": "apiCall",
+                            "x": 317,
+                            "y": 43,
+                            "serviceName": "",
+                            "entitySet": "",
+                            "crudType": "READ",
+                            "apiType": "REST",
+                            "oDataType": "Entity",
+                            "expands": []
+                        },
+                        {
+                            "id": "nmn96ouvlcpcx",
+                            "type": "returnObject",
+                            "x": 600,
+                            "y": 150,
+                            "returnType": "default",
+                            "returnLabels": []
+                        }
+                    ],
+                    "graphEdges": [
+                        {
+                            "from": "nmn96ouvl8wc7",
+                            "to": "nmn96ouvl8ps3"
+                        },
+                        {
+                            "from": "nmn96ouvl8ps3",
+                            "to": "nmn96ouvlcpcx"
+                        }
+                    ]
+                }
+            ],
+            "agentBlocks": [
+                {
+                    "_id": "nmn96o8h2kd04",
+                    "type": "instruction",
+                    "label": "Instruction",
+                    "text": "<p>something something</p>"
+                },
+                {
+                    "_id": "nmn96od0asiwk",
+                    "type": "returnFields",
+                    "showJson": false,
+                    "fields": [
+                        {
+                            "name": "prompt",
+                            "description": "<The QUestion asked>"
+                        },
+                        {
+                            "name": "answer",
+                            "description": "<for an answer based on what was asked>"
+                        },
+                        {
+                            "name": "readableAnswer",
+                            "description": "<an answer that can be read out>"
+                        },
+                        {
+                            "name": "filledForm",
+                            "description": "<Mandatory field. The tool will return a blank json. Filled form will contain that same json with the values filled with information provided by the user. Keep the values \"\" if user has not provided. the returned JSON must contain every field returned by the tool>"
+                        },
+                        {
+                            "name": "bigForm",
+                            "description": "Default set to true"
+                        },
+                        {
+                            "name": "hasUpload",
+                            "description": "Default set to false"
+                        },
+                        {
+                            "name": "masterEntity",
+                            "description": ""
+                        },
+                        {
+                            "name": "toolCalled",
+                            "description": "<The tool called. tool name should be exactly same>"
+                        },
+                        {
+                            "name": "buttons",
+                            "description": "<Array of objects with probable answers. Each object will have one property called text:<possible answer>>"
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}
