@@ -134,6 +134,69 @@ async def delete_persona(personaId: str):
     # Note: We don't necessarily delete the folder to avoid data loss, just remove from map
     return {"status": "deleted"}
 
+@router.get("/api/personas/{personaId}/export")
+async def export_persona(personaId: str):
+    """Combine persona details, agents, and orchestrator into one JSON."""
+    personas = _load_persona_map()
+    persona = next((p for p in personas if p["personaId"] == personaId), None)
+    if not persona:
+        raise HTTPException(status_code=404, detail="Persona not found")
+    
+    p_dir = os.path.join(CONFIG_DIR, personaId) if (personaId and personaId != "legacy") else CONFIG_DIR
+    
+    # Load agents
+    agents = []
+    agents_file = os.path.join(p_dir, "agents.json")
+    if os.path.exists(agents_file):
+        with open(agents_file, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            agents = data.get("agents", data) if isinstance(data, dict) else data
+            
+    # Load orchestrator
+    orchestrator = {}
+    orch_file = os.path.join(p_dir, "orchestrator.json")
+    if os.path.exists(orch_file):
+        with open(orch_file, "r", encoding="utf-8") as f:
+            orchestrator = json.load(f)
+            
+    return {
+        "persona": persona,
+        "agents": agents,
+        "orchestrator": orchestrator
+    }
+
+@router.post("/api/personas/import")
+async def import_persona_route(payload: dict[str, Any]):
+    """Create a new persona from an imported configuration."""
+    persona_data = payload.get("persona", {})
+    agents = payload.get("agents", [])
+    orchestrator = payload.get("orchestrator", {})
+    
+    name = persona_data.get("personaName", "Imported Persona")
+    description = persona_data.get("personaDescription", "Imported from file")
+    
+    personaId = str(uuid.uuid4())
+    
+    # Save to persona map
+    personas = _load_persona_map()
+    new_persona = {
+        "personaId": personaId,
+        "personaName": name,
+        "personaDescription": description
+    }
+    personas.append(new_persona)
+    _save_persona_map(personas)
+    
+    # Save files
+    p_dir = _get_persona_dir(personaId)
+    _save_agents(agents, personaId)
+    
+    orch_file = os.path.join(p_dir, "orchestrator.json")
+    with open(orch_file, "w", encoding="utf-8") as f:
+        json.dump(orchestrator, f, indent=4, ensure_ascii=False)
+        
+    return new_persona
+
 # ── Agent API Endpoints ────────────────────────────────────
 
 @router.get("/api/agents")

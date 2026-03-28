@@ -501,7 +501,10 @@ function renderPersonasTable() {
             <td style="font-weight:600; color:var(--primary-light)">${escHtml(p.personaName)}</td>
             <td style="color:var(--text-muted)">${escHtml(p.personaDescription)}</td>
             <td>
-                <button class="btn btn-outline btn-sm" onclick="event.stopPropagation(); deletePersona('${p.personaId}')">Delete</button>
+                <div style="display:flex; gap:4px">
+                    <button class="btn btn-outline btn-sm" onclick="event.stopPropagation(); exportPersona('${p.personaId}')">Export</button>
+                    <button class="btn btn-outline btn-sm" onclick="event.stopPropagation(); deletePersona('${p.personaId}')">Delete</button>
+                </div>
             </td>
         </tr>
     `).join('') || '<tr><td colspan="4" style="text-align:center; padding:32px; color:var(--text-dim);">No personas found. Create one to get started.</td></tr>';
@@ -3384,7 +3387,7 @@ function renderNodeGraph() {
                 <select onchange="updateGraphNode('${node.id}','crudType',this.value)" onclick="event.stopPropagation()" onmousedown="event.stopPropagation()">
                     ${crudOpts}
                 </select>
-                <label>Service Name</label>
+                <label>Connection Name</label>
                 <input placeholder="e.g. HRService" value="${escHtml(node.serviceName || '')}"
                        onchange="updateGraphNode('${node.id}','serviceName',this.value)" onclick="event.stopPropagation()" onmousedown="event.stopPropagation()">
                 <label>${oDataType === 'Function Call' ? 'Function Name' : 'EntitySet'}</label>
@@ -3918,23 +3921,34 @@ async function sendChat() {
         const res = await fetch('/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message: msg, thread_id: state.chatThreadId }),
+            body: JSON.stringify({ 
+                prompt: msg, 
+                thread_id: state.chatThreadId || "default-thread", 
+                persona_id: state.personaId 
+            }),
         });
         const data = await res.json();
         state.chatThreadId = data.thread_id;
 
-        for (const step of data.steps) {
-            await sleep(300);
+        if (data.steps && data.steps.length > 0) {
+            for (const step of data.steps) {
+                if (!step.message && !step.node) continue;
+                await sleep(300);
+                const d = document.createElement('div');
+                d.className = 'chat-step';
+                d.innerHTML = `
+                    <div class="step-node">${escHtml(step.node || 'Agent')}</div>
+                    <div class="step-msg">${escHtml(step.message || 'Processing...')}</div>
+                `;
+                area.appendChild(d);
+                area.scrollTop = area.scrollHeight;
+            }
+        } else {
+            // Final fallback
             const d = document.createElement('div');
-            d.className = 'chat-step';
-            d.innerHTML = `
-                <div class="step-node">${step.node}</div>
-                <div class="step-msg">${step.message || ''}</div>
-                ${step.next_agent ? `<div class="step-route">-> ${step.next_agent}</div>` : ''}
-                ${step.tool_call ? `<div class="step-route">-> tool: ${step.tool_call}</div>` : ''}
-            `;
+            d.className = 'chat-msg system';
+            d.textContent = data.response;
             area.appendChild(d);
-            area.scrollTop = area.scrollHeight;
         }
     } catch (e) {
         const d = document.createElement('div');
@@ -3962,3 +3976,145 @@ function showToast(msg, type) {
     setTimeout(() => t.classList.add('hidden'), 2500);
 }
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ── Export / Import ──
+async function exportPersona(personaId) {
+    try {
+        const data = await fetch(`/api/personas/${personaId}/export`).then(r => r.json());
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `persona_${data.persona.personaName.replace(/\s+/g, '_')}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+    } catch (e) { showToast('Export failed', 'error'); }
+}
+
+function triggerImportPersona() {
+    document.getElementById('import-persona-file').click();
+}
+
+let _importedData = null;
+
+async function handleImportFile(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    try {
+        const text = await file.text();
+        _importedData = JSON.parse(text);
+        
+        // Show modal and populate names
+        document.getElementById('import-p-name').value = (_importedData.persona.personaName || '') + ' (Copy)';
+        document.getElementById('import-p-desc').value = _importedData.persona.personaDescription || '';
+        
+        populateImportSelection(_importedData);
+        document.getElementById('import-persona-modal').classList.remove('hidden');
+    } catch (e) { 
+        console.error(e);
+        showToast('Invalid persona file', 'error'); 
+    }
+    event.target.value = ''; // Reset file input
+}
+
+function populateImportSelection(data) {
+    const tree = document.getElementById('import-selection-tree');
+    tree.innerHTML = '';
+    
+    // Agents
+    const agents = data.agents || [];
+    agents.forEach((agent, aIdx) => {
+        const agentDiv = document.createElement('div');
+        agentDiv.className = 'import-agent-item';
+        agentDiv.style.marginBottom = '12px';
+        
+        agentDiv.innerHTML = `
+            <div style="display:flex; align-items:center; gap:8px;">
+                <input type="checkbox" checked data-type="agent" data-idx="${aIdx}" id="imp-agent-${aIdx}" onchange="toggleImportAgentChildren(${aIdx})">
+                <label for="imp-agent-${aIdx}" style="font-weight:600; cursor:pointer;">${escHtml(agent.agentName)} (Agent)</label>
+            </div>
+            <div id="imp-agent-tools-${aIdx}" style="margin-left:24px; margin-top:4px;">
+                ${(agent.tools || []).map((tool, tIdx) => `
+                    <div style="display:flex; align-items:center; gap:6px; margin-top:2px;">
+                        <input type="checkbox" checked data-type="tool" data-agent-idx="${aIdx}" data-tool-idx="${tIdx}" id="imp-tool-${aIdx}-${tIdx}">
+                        <label for="imp-tool-${aIdx}-${tIdx}" style="font-size:13px; cursor:pointer;">${escHtml(tool.toolName)} (Tool)</label>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+        tree.appendChild(agentDiv);
+    });
+    
+    // Orchestrator
+    const orchDiv = document.createElement('div');
+    orchDiv.innerHTML = `
+        <div style="display:flex; align-items:center; gap:8px; margin-top:15px; border-top: 1px solid var(--border); padding-top:10px;">
+            <input type="checkbox" checked id="imp-orchestrator">
+            <label for="imp-orchestrator" style="font-weight:600; cursor:pointer;">Orchestrator Workflow</label>
+        </div>
+    `;
+    tree.appendChild(orchDiv);
+}
+
+function toggleImportAgentChildren(aIdx) {
+    const isChecked = document.getElementById(`imp-agent-${aIdx}`).checked;
+    const tools = document.querySelectorAll(`[data-agent-idx="${aIdx}"]`);
+    tools.forEach(t => t.checked = isChecked);
+}
+
+function closeImportModal() {
+    document.getElementById('import-persona-modal').classList.add('hidden');
+    _importedData = null;
+}
+
+async function confirmImport() {
+    if (!_importedData) return;
+    
+    const newName = document.getElementById('import-p-name').value;
+    const newDesc = document.getElementById('import-p-desc').value;
+    
+    const selectedAgents = [];
+    document.querySelectorAll('[data-type="agent"]').forEach(agentInp => {
+        if (!agentInp.checked) return;
+        
+        const aIdx = parseInt(agentInp.dataset.idx);
+        const agent = JSON.parse(JSON.stringify(_importedData.agents[aIdx]));
+        
+        // Filter tools
+        const selectedTools = [];
+        document.querySelectorAll(`[data-type="tool"][data-agent-idx="${aIdx}"]`).forEach(toolInp => {
+            if (!toolInp.checked) return;
+            const tIdx = parseInt(toolInp.dataset.toolIdx);
+            selectedTools.push(agent.tools[tIdx]);
+        });
+        
+        agent.tools = selectedTools;
+        selectedAgents.push(agent);
+    });
+    
+    const includeOrch = document.getElementById('imp-orchestrator').checked;
+    const finalOrch = includeOrch ? _importedData.orchestrator : { OrchestratorDescription: "", OrchestratorBlocks: [] };
+
+    const payload = {
+        persona: {
+            personaName: newName,
+            personaDescription: newDesc
+        },
+        agents: selectedAgents,
+        orchestrator: finalOrch
+    };
+    
+    try {
+        const res = await fetch('/api/personas/import', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        if (!res.ok) throw new Error('Import failed');
+        
+        showToast('Persona imported successfully', 'success');
+        closeImportModal();
+        await loadPersonas();
+    } catch (e) { showToast(e.message, 'error'); }
+}
