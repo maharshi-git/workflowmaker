@@ -350,6 +350,23 @@ function toggleNativeTheme() {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
+    // ── Login Enforcement ─────────────────────────
+    const savedAuth = localStorage.getItem('wm_auth');
+    if (savedAuth !== 'true') {
+        const modal = document.getElementById('login-modal');
+        if (modal) {
+            modal.classList.remove('hidden');
+            const input = document.getElementById('login-input');
+            if (input) {
+                input.focus();
+                input.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') attemptLogin();
+                });
+            }
+        }
+        return; // Prevent further initialization
+    }
+
     // Default to light theme
     applyTheme(true);
 
@@ -4117,4 +4134,42 @@ async function confirmImport() {
         closeImportModal();
         await loadPersonas();
     } catch (e) { showToast(e.message, 'error'); }
+}
+async function attemptLogin() {
+    const input = document.getElementById('login-input');
+    const errorEl = document.getElementById('login-error');
+    if (!input) return;
+
+    const pass = input.value.trim();
+    if (!pass) return;
+
+    try {
+        const response = await fetch('/api/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ password: pass })
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok && result.status === 'success') {
+            localStorage.setItem('wm_auth', 'true');
+            location.reload(); 
+        } else {
+            throw new Error(result.detail || "Invalid password");
+        }
+    } catch (e) {
+        if (errorEl) {
+            errorEl.style.display = 'block';
+            errorEl.textContent = "Incorrect password. Please try again.";
+        }
+        input.value = '';
+        input.focus();
+    }
+}
+
+// Global logout function
+function logout() {
+    localStorage.removeItem('wm_auth');
+    location.reload();
 }

@@ -8,10 +8,13 @@ import os
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Body
 from fastapi.responses import JSONResponse
+from dotenv import load_dotenv
 
+load_dotenv()
 router = APIRouter()
+MASTER_PASSWORD = os.getenv("MASTER_PASSWORD", "admin123")
 
 # ── Paths ──────────────────────────────────────────────────
 CONFIG_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "configuration")
@@ -255,3 +258,17 @@ async def update_orchestrator(payload: dict[str, Any], personaId: str = Query(No
     with open(orch_file, "w", encoding="utf-8") as f:
         json.dump(payload, f, indent=4, ensure_ascii=False)
     return {"status": "ok", "personaId": personaId}
+
+# ── Login Endpoints ──────────────────────────────────────────
+
+@router.post("/api/login")
+async def login(payload: dict[str, Any] = Body(...)):
+    """Simple password-based login."""
+    password = payload.get("password")
+    if not password:
+        raise HTTPException(status_code=400, detail="Missing password")
+    
+    if password == MASTER_PASSWORD:
+        return {"status": "success", "message": "Authenticated"}
+    else:
+        raise HTTPException(status_code=401, detail="Invalid password")
