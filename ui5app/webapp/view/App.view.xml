@@ -2,18 +2,122 @@
     controllerName="workflowmaker.controller.App"
     xmlns:mvc="sap.ui.core.mvc"
     xmlns="sap.m"
+    xmlns:tnt="sap.tnt"
+    xmlns:f="sap.ui.layout.form"
     xmlns:core="sap.ui.core"
     displayBlock="true"
     height="100%">
     <App id="app">
-        <Page title="Workflow application" enableScrolling="false">
-            <content>
-                <core:HTML content='&lt;iframe id="manageIframe" src="http://localhost:8000/manage" style="border:none; width:100%; height:100%; display:block;"&gt;&lt;/iframe&gt;' />
-                <!-- <VBox class="sapUiMediumMargin" alignItems="Center" justifyContent="Center" height="100%">
-                    <Button text="Open Workflow Maker" type="Emphasized" press=".onOpenWorkflowDialog" />
-                    <core:HTML content='&lt;iframe id="manageIframe" src="http://localhost:8000/manage" style="border:none; width:100%; height:100%; display:block;"&gt;&lt;/iframe&gt;' />
-                </VBox> -->
-            </content>
-        </Page>
+        <tnt:ToolPage id="toolPage">
+            <tnt:header>
+                <tnt:ToolHeader>
+                    <Button id="sideNavigationToggleButton"
+                            icon="sap-icon://menu2"
+                            type="Transparent"
+                            press=".onSideNavButtonPress">
+                        <layoutData>
+                            <OverflowToolbarLayoutData priority="NeverOverflow" />
+                        </layoutData>
+                    </Button>
+                    <ToolbarSpacer width="20px" />
+                    <Title text="Workflow Maker UI5 Wrapper" />
+                </tnt:ToolHeader>
+            </tnt:header>
+            <tnt:sideContent>
+                <tnt:SideNavigation id="sideNavigation" selectedKey="managesid" itemSelect=".onItemSelect">
+                    <tnt:NavigationList>
+                        <tnt:NavigationListItem text="Manage Sid" icon="sap-icon://manager" key="managesid" />
+                        <tnt:NavigationListItem text="Workflow Maker" icon="sap-icon://work-history" key="workflow" />
+                    </tnt:NavigationList>
+                </tnt:SideNavigation>
+            </tnt:sideContent>
+            <tnt:mainContents>
+                <NavContainer id="pageContainer">
+                    <Page id="manageSidPage" title="Manage Sid" showHeader="false">
+                        <VBox class="sapUiMediumMargin">
+                            <Title text="Manage Sid Configuration" level="H2" class="sapUiSmallMarginBottom" />
+                            <Text text="Storage backend configuration for the onboardeedevice endpoint." class="sapUiSmallMarginBottom"/>
+                            
+                            <f:SimpleForm id="manageSidForm" 
+                                editable="true" layout="ResponsiveGridLayout" 
+                                title="Storage Options" labelSpanM="3" labelSpanL="3" emptySpanL="4" emptySpanM="4">
+                                <f:content>
+                                    <Label text="Chat History"/>
+                                    <Select id="selChatHistory" selectedKey="{Chathistory}">
+                                        <core:Item key="file" text="File" />
+                                        <core:Item key="sqlite" text="SQLite" />
+                                        <core:Item key="hana" text="HANA" />
+                                        <core:Item key="blob" text="Blob" />
+                                    </Select>
+
+                                    <Label text="Workflows"/>
+                                    <Select id="selWorkflows" selectedKey="{workflows}">
+                                        <core:Item key="file" text="File" />
+                                        <core:Item key="sqlite" text="SQLite" />
+                                        <core:Item key="hana" text="HANA" />
+                                        <core:Item key="blob" text="Blob" />
+                                    </Select>
+
+                                    <Label text="Big Form"/>
+                                    <Select id="selBigForm" selectedKey="{bigForm}">
+                                        <core:Item key="file" text="File" />
+                                        <core:Item key="sqlite" text="SQLite" />
+                                        <core:Item key="hana" text="HANA" />
+                                        <core:Item key="blob" text="Blob" />
+                                    </Select>
+
+                                    <Label text="Intent Definition"/>
+                                    <Select id="selIntentDef" selectedKey="{IntentDefinition}">
+                                        <core:Item key="file" text="File" />
+                                        <core:Item key="sqlite" text="SQLite" />
+                                        <core:Item key="hana" text="HANA" />
+                                        <core:Item key="blob" text="Blob" />
+                                    </Select>
+
+                                    <Label text="Chat Storage"/>
+                                    <Select id="selChatStorage" selectedKey="{ChatStorage}">
+                                        <core:Item key="file" text="File" />
+                                        <core:Item key="sqlite" text="SQLite" />
+                                        <core:Item key="hana" text="HANA" />
+                                        <core:Item key="blob" text="Blob" />
+                                    </Select>
+                                </f:content>
+                            </f:SimpleForm>
+                            
+                            <f:SimpleForm editable="true" layout="ResponsiveGridLayout" title="System Migration" labelSpanM="3" labelSpanL="3" emptySpanL="4" emptySpanM="4">
+                                <f:content>
+                                    <Label text="From Storage"/>
+                                    <Select id="selMigrateFrom">
+                                        <core:Item key="file" text="File" />
+                                        <core:Item key="sqlite" text="SQLite" />
+                                        <core:Item key="hana" text="HANA" />
+                                        <core:Item key="blob" text="Blob" />
+                                    </Select>
+
+                                    <Label text="To Storage"/>
+                                    <Select id="selMigrateTo">
+                                        <core:Item key="file" text="File" />
+                                        <core:Item key="sqlite" text="SQLite" />
+                                        <core:Item key="hana" text="HANA" />
+                                        <core:Item key="blob" text="Blob" />
+                                    </Select>
+                                </f:content>
+                            </f:SimpleForm>
+                            
+                            <HBox justifyContent="End" class="sapUiSmallMarginTop">
+                                <Button text="Copy All" type="Accept" press=".onCopyAll" class="sapUiSmallMarginEnd" />
+                                <Button text="Copy Intents" type="Ghost" press=".onCopyIntents" class="sapUiSmallMarginEnd" />
+                                <Button text="Copy Workflows" type="Ghost" press=".onCopyWorkflows" class="sapUiSmallMarginEnd" />
+                                <Button text="Copy Big Forms" type="Ghost" press=".onCopyBigForms" class="sapUiSmallMarginEnd" />
+                                <Button text="Save Configuration" type="Emphasized" press=".onSaveStorageConfig" />
+                            </HBox>
+                        </VBox>
+                    </Page>
+                    <Page id="workflowPage" showHeader="false">
+                        <core:HTML content='&lt;iframe id="manageIframe" src="http://localhost:8000/manage" style="border:none; width:100%; height:100%; display:block;"&gt;&lt;/iframe&gt;' />
+                    </Page>
+                </NavContainer>
+            </tnt:mainContents>
+        </tnt:ToolPage>
     </App>
 </mvc:View>

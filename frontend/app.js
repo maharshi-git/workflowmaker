@@ -502,6 +502,54 @@ async function loadPersonas() {
     try {
         state.personas = await fetch('/api/personas').then(r => r.json());
         renderPersonasTable();
+
+        try {
+            const savedStr = localStorage.getItem('wm_route');
+            if (savedStr) {
+                const route = JSON.parse(savedStr);
+                if (route.personaId) {
+                    state.personaId = route.personaId;
+                    const p = state.personas.find(x => x.personaId === route.personaId);
+                    if (p) {
+                        try {
+                            // Pre-load dependencies mapped from Persona
+                            state.agents = await fetch(`/api/agents?personaId=${state.personaId}`).then(r => r.json());
+                            const orch = await fetch(`/api/orchestrator?personaId=${state.personaId}`).then(r => r.json());
+                            if (orch && orch.OrchestratorBlocks) {
+                                state.orchestratorBlocks = orch.OrchestratorBlocks;
+                            } else if (orch && orch.OrchestratorDescription) {
+                                state.orchestratorBlocks = [{ type: 'instruction', label: 'Instruction', text: orch.OrchestratorDescription }];
+                            } else {
+                                state.orchestratorBlocks = [];
+                            }
+                            
+                            const headerToggle = document.getElementById('orch-use-headers');
+                            if (headerToggle && orch && orch.useBlockHeaders !== undefined) {
+                                headerToggle.checked = !!orch.useBlockHeaders;
+                            }
+                            renderOrchBlocks();
+                            generateOrchPreview();
+
+                            state.currentAgent = route.currentAgent;
+                            state.currentTool = route.currentTool;
+
+                            // Restore correct view natively
+                            if (route.viewId === 'view-agent-detail' && state.currentAgent !== null && state.agents[state.currentAgent]) {
+                                showAgentDetail(state.currentAgent);
+                            } else if (route.viewId === 'view-tool-detail' && state.currentAgent !== null && state.currentTool !== null && state.agents[state.currentAgent]) {
+                                showToolDetail(state.currentAgent, state.currentTool);
+                            } else if (route.viewId === 'view-agents') {
+                                showAgentsList();
+                            } else {
+                                showPersonasView();
+                            }
+                            return; // Halts default fallback
+                        } catch(er) { console.error('Restoration failed', er); }
+                    }
+                }
+            }
+        } catch(routeErr) { console.error(routeErr); }
+
         if (!state.personaId) {
             showPersonasView();
         }
@@ -1738,6 +1786,15 @@ function switchAgentDefTab(tab) {
 function showView(id) {
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
     document.getElementById(id).classList.add('active');
+    
+    // Save route state
+    const savedRoute = {
+        viewId: id,
+        personaId: state.personaId,
+        currentAgent: state.currentAgent,
+        currentTool: state.currentTool
+    };
+    localStorage.setItem('wm_route', JSON.stringify(savedRoute));
 }
 
 function setBreadcrumb(crumbs) {
@@ -2257,6 +2314,8 @@ function renderFieldList(fields, pathPrefix) {
                         <option value="Date" ${f.type === 'Date' ? 'selected' : ''}>Date</option>
                         <option value="Checkbox" ${f.type === 'Checkbox' ? 'selected' : ''}>Checkbox</option>
                         <option value="table" ${f.type === 'table' ? 'selected' : ''}>Table</option>
+                        <option value="Upload" ${f.type === 'Upload' ? 'selected' : ''}>Upload</option>
+                        <option value="Link" ${f.type === 'Link' ? 'selected' : ''}>Link</option>
                     </select>
                     ${f.type === 'Checkbox' ? `
                         <span class="fe-label" style="color:var(--primary-light);">format</span>
@@ -2276,6 +2335,10 @@ function renderFieldList(fields, pathPrefix) {
                             <option value="yyyy-mm-ddThh:mm:ss" ${f.format === 'yyyy-mm-ddThh:mm:ss' ? 'selected' : ''}>yyyy-mm-ddThh:mm:ss</option>
                             <option value="Edm.DateTime" ${f.format === 'Edm.DateTime' ? 'selected' : ''}>Edm.DateTime ticks</option>
                         </select>
+                    ` : ''}
+                    ${f.type === 'Upload' ? `
+                        <span class="fe-label" style="color:var(--primary-light);">templateType</span>
+                        <input class="fe-input" style="border-color:var(--primary);" value="${escHtml(f.templateType || '')}" onchange="updateFormField('${path}','templateType',this.value)" placeholder="e.g. PDF/DOCX">
                     ` : ''}
                     <span class="fe-label">entity</span>
                     <input class="fe-input" value="${escHtml(f.entity || '')}" onchange="updateFormField('${path}','entity',this.value)">
@@ -4388,4 +4451,74 @@ async function attemptLogin() {
 function logout() {
     localStorage.removeItem('wm_auth');
     location.reload();
+}
+
+// ═══════════════════════════════════════════════════════════
+//  Knowledge Base
+// ═══════════════════════════════════════════════════════════
+async function createKnowledgeBase() {
+    try {
+        const res = await fetch('/api/knowledgebases');
+        state.knowledgeBases = await res.json();
+    } catch(e) {
+        state.knowledgeBases = [];
+        showToast('Failed to fetch knowledge bases', 'error');
+    }
+    
+    // Switch tracking context and Breadcrumb
+    setBreadcrumb([
+        { label: 'Personas', onclick: 'showPersonasView()' },
+        { label: 'Tools', onclick: 'showToolsList()' },
+        { label: 'Knowledge Bases' }
+    ]);
+    
+    // Hide docs panel initially
+    document.getElementById('kb-docs-panel').style.display = 'none';
+    
+    showView('view-kb');
+    renderKBTable();
+}
+
+function renderKBTable() {
+    const tbody = document.querySelector('#kb-table tbody');
+    if (!tbody) return;
+    
+    const searchInput = document.getElementById('search-kb');
+    const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
+    
+    const kbs = state.knowledgeBases || [];
+    const filtered = kbs.map((kb, i) => ({ ...kb, _idx: i }))
+                        .filter(kb => (kb.name || '').toLowerCase().includes(searchTerm));
+    
+    tbody.innerHTML = filtered.map(kb => `
+        <tr onclick="showKBDocs(${kb._idx})" style="cursor: pointer;">
+            <td>${kb._idx + 1}</td>
+            <td style="font-weight:600; color:var(--primary-light)">${escHtml(kb.name)}</td>
+            <td>${kb.fileCount}</td>
+        </tr>
+    `).join('') || '<tr><td colspan="3" style="text-align:center; padding:32px; color:var(--text-dim);">No knowledge bases found. Add folders in the knowledgebase directory.</td></tr>';
+}
+
+function showKBDocs(idx) {
+    const kb = (state.knowledgeBases || [])[idx];
+    if (!kb) return;
+    
+    document.getElementById('kb-docs-title').textContent = `Documents in ${kb.name}`;
+    const list = document.getElementById('kb-docs-list');
+    
+    if (kb.files && kb.files.length > 0) {
+        list.innerHTML = kb.files.map(f => `
+            <li style="padding: 12px; background: var(--bg-hover); border-radius: var(--radius-sm); border: 1px solid var(--border); display: flex; align-items: center; gap: 8px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--text-muted);">
+                    <path d="M13 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V9z"></path>
+                    <polyline points="13 2 13 9 20 9"></polyline>
+                </svg>
+                <span style="font-weight: 500;">${escHtml(f)}</span>
+            </li>
+        `).join('');
+    } else {
+        list.innerHTML = '<li style="padding: 12px; color: var(--text-dim);">No files found in this folder.</li>';
+    }
+    
+    document.getElementById('kb-docs-panel').style.display = 'block';
 }

@@ -296,7 +296,10 @@
                     </div>
                     <div class="form-group">
                         <label>Knowledge</label>
-                        <input class="form-input" id="det-tool-knowledge">
+                        <div style="display: flex; gap: 8px;">
+                            <input class="form-input" id="det-tool-knowledge" style="flex: 1;">
+                            <button class="btn btn-outline btn-sm" onclick="createKnowledgeBase()">Create knowledge base</button>
+                        </div>
                     </div>
                     <div class="form-group">
                         <label>App Link</label>
@@ -654,6 +657,37 @@
                             readonly
                             style="border-color: var(--success); background: rgba(16, 185, 129, 0.05);"></textarea>
                     </div>
+                </div>
+            </div>
+        <!-- ═══ View: Knowledge Base ═══ -->
+        <div id="view-kb" class="view">
+            <div class="view-toolbar">
+                <h2>Knowledge Bases</h2>
+                <div style="display: flex; gap: 8px;">
+                    <input type="text" id="search-kb" class="form-input" placeholder="Search knowledge bases..." oninput="renderKBTable()" style="width: 250px;">
+                </div>
+            </div>
+            
+            <div class="table-wrap">
+                <table id="kb-table">
+                    <thead>
+                        <tr>
+                            <th width="40">#</th>
+                            <th>Knowledge Base Name</th>
+                            <th width="150">Files Count</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+
+            <!-- Documents Panel for displaying files when clicked -->
+            <div id="kb-docs-panel" class="card" style="margin-top: 24px; display: none;">
+                <div class="card-header-row">
+                    <h3 id="kb-docs-title">Documents</h3>
+                </div>
+                <div class="card-body">
+                    <ul id="kb-docs-list" style="list-style: none; padding: 0; display: flex; flex-direction: column; gap: 8px;"></ul>
                 </div>
             </div>
         </div>
